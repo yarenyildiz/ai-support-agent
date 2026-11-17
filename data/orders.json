@@ -1,0 +1,67 @@
+[
+    {
+      "order_id": "SP-1001",
+      "customer_name": "Ayşe Demir",
+      "product": "Kablosuz Kulaklık",
+      "status": "kargoda",
+      "order_date": "2026-11-10",
+      "cargo_tracking_no": "TRK-558812"
+    },
+    {
+      "order_id": "SP-1002",
+      "customer_name": "Mehmet Kaya",
+      "product": "Akıllı Saat",
+      "status": "hazırlanıyor",
+      "order_date": "2026-11-15",
+      "cargo_tracking_no": null
+    },
+    {
+        "order_id": "SP-1003",
+        "customer_name": "Yigit Yalcin",
+        "product": "Protein Tozu",
+        "status":"hazırlanıyor",
+        "order_date":"2026-11-17",
+        "cargo_tracking_no": null
+    },
+    {
+        "order_id": "SP-1004",
+        "customer_name": "Beril Ozkazanc",
+        "product": "Bebek Yağı",
+        "status": "kargoda",
+        "order_date": "2026-11-15",
+        "cargo_tracking_no": "TRK-558813"
+    },
+    {
+        "order_id": "SP-1005",
+        "customer_name": "Sarp Tiryaki",
+        "product": "Motor Yağı",
+        "status":"hazırlanıyor",
+        "order_date": "2026-11-17",
+        "cargo_tracking_no": null
+    },
+    {
+        "order_id": "SP-1006",
+        "customer_name": "İdil Gönder",
+        "product": "Deri Ceket",
+        "status":"teslim edildi",
+        "order_date": "2026-11-10",
+        "cargo_tracking_no": "TRK-558815"
+    },
+    { 
+        "order_id": "SP-1007",
+        "customer_name": "İdil Gönder",
+        "product": "Oda Kokusu",
+        "status":"teslim edildi",
+        "order_date": "2026-11-10",
+        "cargo_tracking_no": "TRK-558819"
+    },
+    {
+        "order_id": "SP-1008",
+        "customer_name": "Kagan Gönder",
+        "product": "Akıllı Saat",
+        "status": "iade edildi",
+        "order_date": "2026-11-10",
+        "cargo_tracking_no": "TRK-558817"
+
+     }
+  ]
