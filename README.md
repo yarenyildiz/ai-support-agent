@@ -1,6 +1,6 @@
-# Destekçi
+# AI Support Agent
 
-An LLM-powered customer support agent for a fictional e-commerce company, built with Google Gemini and function calling. The agent answers order-status questions by calling typed Python tools backed by a validated data layer, and declines to answer when no data is found.
+An LLM-powered customer support agent ("Destekçi") for a fictional e-commerce company, built with Google Gemini and function calling. The agent answers order-status questions by calling typed Python tools backed by a validated data layer, and declines to answer when no data is found.
 
 This repository is being built incrementally toward a multi-agent, hub-and-spoke architecture on Google Cloud (see [Roadmap](#roadmap)).
 
@@ -53,7 +53,7 @@ User ──► chat loop (chat.py) ──► Gemini (chat session + system instr
 
 ```bash
 git clone <repo-url>
-cd destekci
+cd ai-support-agent
 uv sync
 ```
 
@@ -66,7 +66,7 @@ GEMINI_API_KEY=your_api_key
 Run the agent:
 
 ```bash
-uv run --env-file .env python -m destekci.chat
+uv run --env-file .env python -m ai_support_agent.chat
 ```
 
 Example session:
@@ -94,10 +94,10 @@ uv run ruff format .     # format
 ## Project structure
 
 ```
-destekci/
+ai-support-agent/
 ├── data/
 │   └── orders.json          # sample order data
-├── src/destekci/
+├── src/ai_support_agent/
 │   ├── models.py            # Pydantic domain models
 │   ├── repository.py        # data access layer
 │   └── chat.py              # agent, tools, chat loop

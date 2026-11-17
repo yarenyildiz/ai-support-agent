@@ -1,5 +1,5 @@
 [project]
-name = "destekci"
+name = "ai-support-agent"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-destekci = "destekci:main"
+ai-support-agent = "ai_support_agent:main"
 
 [build-system]
 requires = ["uv_build>=0.13.8,<0.14.0"]

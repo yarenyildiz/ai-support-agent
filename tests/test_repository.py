@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from destekci.repository import OrderRepository
+from ai_support_agent.repository import OrderRepository
 
 VERI = Path("data/orders.json")
 

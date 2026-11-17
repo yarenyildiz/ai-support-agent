@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from destekci.models import Order
+from ai_support_agent.models import Order
 
 
 class OrderRepository:

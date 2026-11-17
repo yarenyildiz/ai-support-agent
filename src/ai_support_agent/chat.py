@@ -3,7 +3,7 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
-from destekci.repository import OrderRepository
+from ai_support_agent.repository import OrderRepository
 
 repo = OrderRepository(Path("data/orders.json"))
 
