@@ -36,5 +36,12 @@ Bilmediğin bir şeyi asla uydurma.""",
     ),
 )
 
-cevap = chat.send_message("SP-1004 nerede?")
-print(cevap.text)
+print("Destekçi: Merhaba! Size nasıl yardımcı olabilirim? (Çıkmak için 'çıkış' yazın)")
+
+while True:
+    soru = input("Siz: ")
+    if soru == "çıkış":
+        print("Destekçi: Görüşmek üzere! 👋")
+        break
+    cevap = chat.send_message(soru)
+    print("Destekçi:", cevap.text)
