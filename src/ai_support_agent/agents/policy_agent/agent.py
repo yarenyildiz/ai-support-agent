@@ -27,6 +27,7 @@ def politika_ara(soru: str) -> str:
 root_agent = Agent(
     name="policy_agent",
     before_model_callback=girdi_kontrolu,
+    disallow_transfer_to_peers=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),

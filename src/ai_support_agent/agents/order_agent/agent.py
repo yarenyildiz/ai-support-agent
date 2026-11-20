@@ -21,6 +21,7 @@ def siparis_durumu_getir(siparis_no: str) -> dict:
 root_agent = Agent(
     name="order_agent",
     before_model_callback=girdi_kontrolu,
+    disallow_transfer_to_peers=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),
