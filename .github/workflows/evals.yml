@@ -1,0 +1,32 @@
+name: Evals
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Install dependencies
+        run: uv sync --python 3.11
+
+      - name: Retrieval golden set
+        run: uv run pytest -q tests/test_retrieval.py
+
+      - name: Routing / trajectory eval
+        run: uv run python evals/routing_eval.py
+
+      - name: Wait for rate limit window
+        run: sleep 60
+
+      - name: LLM-as-judge answer eval
+        run: uv run python evals/answer_eval.py

@@ -68,6 +68,8 @@ async def main() -> None:
     kontrol = hakem("İade süresi kaç gün?", VAKALAR[0][1], "İade süresi 30 gündür.")
     durum = "✓ hakem yanlışı yakaladı" if not kontrol.dogru else "✗ HAKEM GÜVENİLMEZ"
     print(f"Negatif kontrol: {durum}\n")
+    if kontrol.dogru:
+        raise SystemExit("Hakem güvenilmez: bariz yanlış cevabı kabul etti.")
 
     gecen = 0
     for soru, beklenen in VAKALAR:
@@ -77,6 +79,8 @@ async def main() -> None:
         gecen += karar.dogru
         print(f"{'✓' if karar.dogru else '✗'} {soru}\n    {karar.gerekce}")
     print(f"\nSonuç: {gecen}/{len(VAKALAR)}")
+    if gecen < len(VAKALAR):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

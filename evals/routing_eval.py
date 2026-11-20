@@ -49,6 +49,8 @@ async def main() -> None:
         isaret = "✓" if basarili else "✗"
         print(f"{isaret} {soru}\n    → {cevaplayan} {araclar}")
     print(f"\nSonuç: {gecen}/{len(VAKALAR)}")
+    if gecen < len(VAKALAR):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
