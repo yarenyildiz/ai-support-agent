@@ -24,7 +24,7 @@ This repository is being built incrementally toward a production deployment on G
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
 - **Conversation memory:** Messages with the same `session_id` share history through ADK's session service, so follow-ups like "can I return *it*?" resolve against earlier turns.
 - **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
-- **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request.
+- **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
 - **Scope control:** Off-topic queries (e.g. weather) are declined by the hub.
 - **Resilience:** Every agent's Gemini model is configured with up to 5 automatic retries to absorb transient `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` responses.
@@ -354,10 +354,10 @@ ai-support-agent/
   - [x] Output guardrail: instruction-leak detection, card-number masking
   - [x] Persistent return requests in SQLite with one-request-per-order constraint
 - [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
-- [ ] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
+- [x] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
   - [x] CI: lint, format check and tests on every push (GitHub Actions)
   - [x] Routing / tool-trajectory eval (7/7)
   - [x] LLM-as-judge answer eval with negative control (5/5)
-  - [ ] Run evals automatically in CI (needs the API key as a repository secret)
+  - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
