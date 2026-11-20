@@ -18,6 +18,24 @@ def kart_numarasini_gizle(metin: str) -> str:
     return KART_DESENI.sub(GIZLI, metin)
 
 
+SALDIRI_IFADELERI = (
+    "talimatlarını unut",
+    "talimatları unut",
+    "kuralları unut",
+    "ignore previous instructions",
+    "ignore all instructions",
+    "sistem talimatını",
+    "system prompt",
+)
+
+
+def talimat_saldirisi_mi(metin: str) -> bool:
+    """Bilinen prompt injection ifadelerini arar (büyük/küçük harf duyarsız)."""
+    turkce = metin.replace("İ", "i").replace("I", "ı").lower()
+    ingilizce = metin.lower()
+    return any(ifade in turkce or ifade in ingilizce for ifade in SALDIRI_IFADELERI)
+
+
 def girdi_kontrolu(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> LlmResponse | None:
@@ -32,6 +50,15 @@ def girdi_kontrolu(
                 parca.text = kart_numarasini_gizle(parca.text)
                 if sira == len(llm_request.contents) - 1:
                     son_mesajda_var = True
+
+    son = llm_request.contents[-1] if llm_request.contents else None
+    son_metin = " ".join(p.text or "" for p in (son.parts or [])) if son else ""
+    if son and son.role == "user" and talimat_saldirisi_mi(son_metin):
+        uyari = (
+            "Bu isteği yerine getiremiyorum. "
+            "Sipariş, iade ve kargo konularında yardımcı olabilirim."
+        )
+        return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=uyari)]))
 
     if son_mesajda_var:
         uyari = (
