@@ -5,11 +5,12 @@ from google.genai import types
 from ai_support_agent.agents.operations_agent.agent import root_agent as operations_agent
 from ai_support_agent.agents.order_agent.agent import root_agent as order_agent
 from ai_support_agent.agents.policy_agent.agent import root_agent as policy_agent
-from ai_support_agent.guardrails import girdi_kontrolu
+from ai_support_agent.guardrails import cikti_kontrolu, girdi_kontrolu
 
 root_agent = Agent(
     name="support_agent",
     before_model_callback=girdi_kontrolu,
+    after_model_callback=cikti_kontrolu,
     model=Gemini(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),

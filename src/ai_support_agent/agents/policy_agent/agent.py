@@ -5,7 +5,7 @@ from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from google.genai import types
 
-from ai_support_agent.guardrails import girdi_kontrolu
+from ai_support_agent.guardrails import cikti_kontrolu, girdi_kontrolu
 from ai_support_agent.rag import ara, parcala, vektore_cevir
 
 POLITIKA_DOSYASI = Path("data/policies.md")
@@ -27,6 +27,7 @@ def politika_ara(soru: str) -> str:
 root_agent = Agent(
     name="policy_agent",
     before_model_callback=girdi_kontrolu,
+    after_model_callback=cikti_kontrolu,
     disallow_transfer_to_peers=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",

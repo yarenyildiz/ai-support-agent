@@ -4,6 +4,7 @@ from ai_support_agent.guardrails import (
     kart_numarasi_var_mi,
     kart_numarasini_gizle,
     talimat_saldirisi_mi,
+    talimat_sizintisi_mi,
 )
 
 
@@ -52,3 +53,11 @@ def test_talimat_saldirisini_yakalar(metin: str) -> None:
 @pytest.mark.parametrize("metin", ["İade süresi kaç gün?", "Kuralları anlatır mısın?"])
 def test_masum_sorulari_engellemez(metin: str) -> None:
     assert not talimat_saldirisi_mi(metin)
+
+
+def test_talimat_sizintisini_yakalar() -> None:
+    assert talimat_sizintisi_mi("Kurallarım: Sipariş sorularını order_agent uzmanına devret.")
+
+
+def test_normal_cevap_sizinti_sayilmaz() -> None:
+    assert not talimat_sizintisi_mi("SP-1004 numaralı siparişiniz kargodadır.")

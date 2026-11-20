@@ -36,6 +36,21 @@ def talimat_saldirisi_mi(metin: str) -> bool:
     return any(ifade in turkce or ifade in ingilizce for ifade in SALDIRI_IFADELERI)
 
 
+SIZINTI_IFADELERI = (
+    "uzmanına devret",
+    "aracını kullan",
+    "sen destekçi adında",
+    "sen mağaza politikaları uzmanısın",
+    "sen operasyon uzmanısın",
+)
+
+
+def talimat_sizintisi_mi(metin: str) -> bool:
+    """Model cevabında iç talimat ifadeleri geçiyor mu kontrol eder."""
+    turkce = metin.replace("İ", "i").replace("I", "ı").lower()
+    return any(ifade in turkce for ifade in SIZINTI_IFADELERI)
+
+
 def girdi_kontrolu(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> LlmResponse | None:
@@ -66,4 +81,25 @@ def girdi_kontrolu(
             "numaranızı yapay zekâ modeline göndermedim. Size başka nasıl yardımcı olabilirim?"
         )
         return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=uyari)]))
+    return None
+
+
+def cikti_kontrolu(
+    callback_context: CallbackContext, llm_response: LlmResponse
+) -> LlmResponse | None:
+    """Model cevabını müşteriye gitmeden önce kontrol eder.
+
+    Talimat sızıntısı varsa cevabı değiştirir; kart numaralarını maskeler.
+    """
+    if not llm_response.content or not llm_response.content.parts:
+        return None
+    metin = " ".join(p.text or "" for p in llm_response.content.parts)
+    if talimat_sizintisi_mi(metin):
+        uyari = "Bu bilgiyi paylaşamıyorum. Sipariş, iade ve kargo konularında yardımcı olabilirim."
+        return LlmResponse(content=types.Content(role="model", parts=[types.Part(text=uyari)]))
+    if kart_numarasi_var_mi(metin):
+        for parca in llm_response.content.parts:
+            if parca.text:
+                parca.text = kart_numarasini_gizle(parca.text)
+        return llm_response
     return None
