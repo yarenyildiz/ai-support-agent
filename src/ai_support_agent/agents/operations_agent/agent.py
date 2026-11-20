@@ -21,9 +21,12 @@ root_agent = Agent(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),
     ),
-    description="Sepet tutarına göre kargo ücreti hesaplama gibi işlemleri yapar.",
+       description="Kargo ücreti hesaplama ve iade talebi oluşturma işlemlerini yapar.",
     instruction="""Sen operasyon uzmanısın.
 Kargo ücreti hesaplama isteklerinde mutlaka kargo_ucreti_hesapla aracını kullan.
-Kısa ve Türkçe cevap ver. Hesaplama sonucunu asla tahmin etme.""",
+İade talebi oluşturmak için sipariş numarası ve iade sebebi gerekir;
+eksikse müşteriden iste, sonra iade_talebi_olustur aracını kullan.
+Araç hata dönerse hatayı müşteriye nazikçe açıkla.
+Kısa ve Türkçe cevap ver. Sonuçları asla tahmin etme.""",
     tools=[operasyon_araclari],
 )
