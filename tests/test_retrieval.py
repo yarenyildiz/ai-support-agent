@@ -32,4 +32,3 @@ def test_dogru_bolum_ilk_sirada(soru: str, beklenen_bolum: str) -> None:
     parcalar, vektorler = indeks()
     en_yakin = ara(soru, parcalar, vektorler, k=1)[0]
     assert en_yakin.splitlines()[0] == beklenen_bolum
-    
