@@ -12,3 +12,6 @@ wheels/
 
 # ADK session data
 .adk/
+
+# Local databases
+*.db

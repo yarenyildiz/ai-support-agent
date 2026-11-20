@@ -3,9 +3,10 @@ from pathlib import Path
 from mcp.server.mcpserver import MCPServer
 
 from ai_support_agent.repository import OrderRepository
+from ai_support_agent.returns_store import IadeDeposu
 
 repo = OrderRepository(Path("data/orders.json"))
-iade_talepleri: list[dict] = []
+iade_deposu = IadeDeposu(Path("data/returns.db"))
 mcp = MCPServer("operations")
 
 
@@ -26,13 +27,7 @@ def iade_talebi_olustur(siparis_no: str, sebep: str) -> dict:
         return {
             "hata": f"Sadece teslim edilmiş siparişler iade edilebilir (durum: {siparis.status})"
         }
-    talep = {
-        "talep_no": f"IADE-{len(iade_talepleri) + 1:04d}",
-        "siparis_no": siparis_no,
-        "sebep": sebep,
-    }
-    iade_talepleri.append(talep)
-    return talep
+    return iade_deposu.ekle(siparis_no, sebep)
 
 
 if __name__ == "__main__":
