@@ -1,6 +1,8 @@
 # AI Support Agent
 
-A multi-agent customer support system ("Destekçi") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input guardrails run before every model call to keep card numbers away from the model and to stop prompt-injection attempts. The system is served as a FastAPI application with REST, Server-Sent Events and WebSocket endpoints.
+A multi-agent customer support system ("Destekçi") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input and output guardrails wrap every model call to keep card numbers away from the model, stop prompt-injection attempts and prevent instruction leakage. The system is served as a FastAPI application with REST, Server-Sent Events and WebSocket endpoints, and is evaluated with routing/tool-trajectory evals and an LLM-as-judge, with lint and tests running in CI on every push.
+
+[![CI](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml)
 
 This repository is being built incrementally toward a production deployment on Google Cloud (see [Roadmap](#roadmap)).
 
@@ -14,11 +16,15 @@ This repository is being built incrementally toward a production deployment on G
 - **Retrieval evaluation:** A golden set of paraphrased questions (none containing the section's keyword) checks that the correct section ranks first. Current result: **hit@1 = 7/7**.
 - **MCP tool server:** `operations_agent` has no in-process tools. It discovers `kargo_ucreti_hesapla` and `iade_talebi_olustur` at runtime from a separate MCP server (`mcp_server.py`, MCP Python SDK 2.x) that ADK launches over stdio via `McpToolset`.
 - **Business rules enforced in code:** `iade_talebi_olustur` creates a return request only for orders whose status is `teslim edildi`; unknown or undelivered orders get a structured error. The rule holds even when the model is manipulated.
+- **Persistent return requests:** Return requests are stored in SQLite (`data/returns.db`, git-ignored) behind an `IadeDeposu` repository. Request numbers (`IADE-0001`, ...) survive server restarts, and a `UNIQUE` constraint on the order ID rejects a second request for the same order at the database level.
 - **Card-number masking:** A `before_model_callback` on every agent masks card-number-like sequences (13–19 digits, with optional spaces or dashes) across the entire conversation history before it is sent to the model. If the latest message contains one, the model is not called at all and a fixed warning is returned.
 - **Prompt-injection screening:** Known injection phrases in Turkish and English ("talimatlarını unut", "ignore previous instructions", ...) are detected case-insensitively and the request is refused before reaching the model.
+- **Output guardrail:** An `after_model_callback` on every agent inspects each model response before it reaches the customer. Responses that echo internal instruction phrases are replaced with a refusal, and any card-number-like sequence is masked.
 - **HTTP API:** `POST /chat` returns the final reply as JSON; `POST /chat/stream` streams agent events as Server-Sent Events; `/ws/{user_id}/{session_id}` keeps a WebSocket open for multi-turn chat. Requests are validated with Pydantic and documented automatically at `/docs`.
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
 - **Conversation memory:** Messages with the same `session_id` share history through ADK's session service, so follow-ups like "can I return *it*?" resolve against earlier turns.
+- **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
+- **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
 - **Scope control:** Off-topic queries (e.g. weather) are declined by the hub.
 - **Resilience:** Every agent's Gemini model is configured with up to 5 automatic retries to absorb transient `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` responses.
@@ -35,7 +41,8 @@ This repository is being built incrementally toward a production deployment on G
                                     ▼
               ┌───────────────────────────────────────────┐
               │ input guardrail (before_model_callback)   │  masks card numbers,
-              │ runs before every model call, every agent │  blocks prompt injection
+              │ output guardrail (after_model_callback)   │  blocks prompt injection,
+              │ on every model call, every agent          │  stops instruction leaks
               └─────────────────────┬─────────────────────┘
                                     ▼
                           ┌─────────────────┐
@@ -58,8 +65,8 @@ This repository is being built incrementally toward a production deployment on G
           ▼                        ▼                └─ iade_talebi_olustur
   OrderRepository          RAG pipeline (rag.py)          │
           │                        │                      ▼
-          ▼                        ▼               OrderRepository
-  data/orders.json         data/policies.md        (status check in code)
+          ▼                        ▼               OrderRepository (status check)
+  data/orders.json         data/policies.md        IadeDeposu → data/returns.db (SQLite)
 ```
 
 ### RAG pipeline
@@ -87,8 +94,10 @@ question ──────────────────────► v
 | `agents/order_agent/` | Specialist for order status and cargo tracking. Tool: `siparis_durumu_getir(siparis_no)`. |
 | `agents/operations_agent/` | Specialist for operations. Tools are loaded from the MCP server through `McpToolset`. |
 | `agents/policy_agent/` | Specialist for store policies. Tool: `politika_ara(soru)` returns the most relevant policy sections via RAG. |
-| `mcp_server.py` | MCP server exposing `kargo_ucreti_hesapla` and `iade_talebi_olustur`; return requests are kept in memory for now. |
-| `guardrails.py` | Pure detection/masking functions plus the `girdi_kontrolu` ADK callback attached to every agent. |
+| `mcp_server.py` | MCP server exposing `kargo_ucreti_hesapla` and `iade_talebi_olustur`; return requests are persisted through `IadeDeposu`. |
+| `returns_store.py` | `IadeDeposu`: SQLite-backed repository for return requests with a one-request-per-order constraint. |
+| `guardrails.py` | Pure detection/masking functions plus the `girdi_kontrolu` (input) and `cikti_kontrolu` (output) ADK callbacks attached to every agent. |
+| `evals/` | Routing/tool-trajectory eval and LLM-as-judge answer eval, run manually against the live model. |
 | `rag.py` | Chunking (`parcala`), embedding (`vektore_cevir`), cosine similarity (`benzerlik`) and top-k retrieval (`ara`). |
 | `models.py` | `Order` Pydantic model. `status` is constrained with a `Literal` type, so invalid values fail validation at load time. |
 | `repository.py` | `OrderRepository`: loads and validates orders, exposes `get_by_id` and `list_by_customer`. |
@@ -113,6 +122,10 @@ question ──────────────────────► v
 - **Write operations behind MCP:** Tools that change state are served by a separate MCP server rather than defined inside the agent. This decouples tool implementation from the agent runtime and lets the same tools be reused by any MCP-compatible client.
 - **One event stream, several transports:** `ajan_olaylari()` runs the ADK `Runner` and turns raw ADK events into a small, client-facing event vocabulary. The SSE and WebSocket endpoints only differ in how they serialize those events, so new event types are added in one place.
 - **Strict hub-and-spoke:** Streaming exposed a routing bug that the final-answer-only endpoint hid: for a general shipping-fee question, `policy_agent` transferred to its peer `operations_agent` without consulting the policy document. Disabling peer transfers on all specialists makes the hub the only routing authority; topic changes now go specialist → hub → specialist.
+- **Guard the output too:** Input screening is keyword-based and can be bypassed, so a second check runs on what the model says. The leak detector only matches phrases that appear in our own instructions (e.g. "uzmanına devret") and would not occur in a normal customer answer; the routing eval was re-run after adding it to confirm no regression (7/7).
+- **Let the database enforce invariants:** "One return request per order" is a `UNIQUE` constraint rather than a check in Python or a line in the prompt, so it holds across restarts, concurrent requests and a manipulated model. Values are passed with `?` placeholders, never formatted into SQL.
+- **Evals as a separate layer from tests:** Unit tests are deterministic, free and run in CI. Evals call the live model, are rate-limited (15 requests/minute on the free tier, so cases are paced) and are run before and after behavioral changes. Trajectory checks and the LLM judge answer different questions: "did it take the right path?" versus "is the answer right?".
+- **Trust but verify the judge:** An LLM judge can be wrong or lenient. Each run first checks that the judge rejects a known-wrong answer, and the judge uses `temperature=0` and a Pydantic response schema so verdicts are consistent and machine-readable. Every external call, including the judge's, is configured with retries.
 - **Fast API tests without the model:** API tests use FastAPI's `TestClient` to check request validation (422 on missing or mistyped fields) and endpoint registration. They do not call Gemini, so they run in CI without credentials.
 
 ## Tech stack
@@ -266,10 +279,37 @@ To inspect retrieval directly:
 uv run --env-file .env python -m ai_support_agent.rag
 ```
 
+### Evals
+
+Evals call the live model and take about two minutes each because cases are paced for the free-tier rate limit.
+
+```bash
+uv run --env-file .env python evals/routing_eval.py   # which agent answered, which tools were called
+uv run --env-file .env python evals/answer_eval.py    # LLM-as-judge answer correctness
+```
+
+```
+✓ Kargo ücreti ne kadar?
+    → policy_agent ['politika_ara']
+✓ 320 TL'lik sepetim için kargo ne kadar tutar?
+    → operations_agent ['kargo_ucreti_hesapla']
+...
+Sonuç: 7/7
+```
+
+```
+Negatif kontrol: ✓ hakem yanlışı yakaladı
+✓ SP-9999 nerede?
+    Asistanın cevabı ... siparişin bulunamadığını doğru ve net bir şekilde ifade etmektedir.
+...
+Sonuç: 5/5
+```
+
 ## Project structure
 
 ```
 ai-support-agent/
+├── .github/workflows/ci.yml     # lint, format check and tests on every push
 ├── data/
 │   ├── orders.json              # sample order data
 │   └── policies.md              # store policies (returns, shipping, delivery, cancellation)
@@ -283,7 +323,8 @@ ai-support-agent/
 │   ├── repository.py            # data access layer
 │   ├── rag.py                   # chunking, embedding, retrieval
 │   ├── mcp_server.py            # MCP tool server (shipping fee, return requests)
-│   ├── guardrails.py            # card masking, injection screening, ADK callback
+│   ├── returns_store.py         # SQLite repository for return requests
+│   ├── guardrails.py            # input/output guardrails and ADK callbacks
 │   ├── api.py                   # FastAPI app: REST, SSE and WebSocket endpoints
 │   └── chat.py                  # week 1 single-agent prototype
 ├── tests/
@@ -291,7 +332,11 @@ ai-support-agent/
 │   ├── test_rag.py              # unit tests for chunking
 │   ├── test_guardrails.py       # guardrail detection, masking, false positives
 │   ├── test_api.py              # request validation and endpoint registration
+│   ├── test_returns_store.py    # numbering, duplicate rejection, persistence
 │   └── test_retrieval.py        # retrieval golden set (hit@1)
+├── evals/
+│   ├── routing_eval.py          # routing and tool-trajectory eval
+│   └── answer_eval.py           # LLM-as-judge answer eval
 └── pyproject.toml
 ```
 
@@ -303,11 +348,16 @@ ai-support-agent/
   - [x] Local pipeline: heading-based chunking, Gemini embeddings, cosine retrieval, source citations
   - [x] Retrieval golden set (hit@1 = 7/7)
   - [ ] Vertex AI Search backend, compared against the local baseline
-- [ ] **Week 4:** MCP server for refund/shipping operations, input/output guardrails
+- [x] **Week 4:** MCP server for refund/shipping operations, input/output guardrails
   - [x] MCP server with shipping-fee and rule-checked return-request tools, consumed via `McpToolset`
   - [x] Input guardrails: card-number masking across history, prompt-injection screening
-  - [ ] Output guardrails and persistent storage for return requests
+  - [x] Output guardrail: instruction-leak detection, card-number masking
+  - [x] Persistent return requests in SQLite with one-request-per-order constraint
 - [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
 - [ ] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
+  - [x] CI: lint, format check and tests on every push (GitHub Actions)
+  - [x] Routing / tool-trajectory eval (7/7)
+  - [x] LLM-as-judge answer eval with negative control (5/5)
+  - [ ] Run evals automatically in CI (needs the API key as a repository secret)
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
