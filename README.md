@@ -1,12 +1,12 @@
 # AI Support Agent
 
-A multi-agent customer support system ("Destekçi") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input guardrails run before every model call to keep card numbers away from the model and to stop prompt-injection attempts.
+A multi-agent customer support system ("Destekçi") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input guardrails run before every model call to keep card numbers away from the model and to stop prompt-injection attempts. The system is served as a FastAPI application with REST, Server-Sent Events and WebSocket endpoints.
 
 This repository is being built incrementally toward a production deployment on Google Cloud (see [Roadmap](#roadmap)).
 
 ## Current capabilities
 
-- **Hub-and-spoke orchestration:** `support_agent` handles greetings and off-topic requests itself and transfers domain questions to the right specialist (`order_agent`, `policy_agent` or `operations_agent`) using ADK's LLM-driven agent transfer. It distinguishes similar intents, e.g. "what is the return period?" (policy) vs. "I want to return SP-1006" (operation).
+- **Hub-and-spoke orchestration:** `support_agent` handles greetings and off-topic requests itself and transfers domain questions to the right specialist (`order_agent`, `policy_agent` or `operations_agent`) using ADK's LLM-driven agent transfer. It distinguishes similar intents, e.g. "what is the return period?" (policy) vs. "I want to return SP-1006" (operation). Specialists cannot transfer to each other (`disallow_transfer_to_peers=True`); when the topic changes mid-conversation they hand control back to the hub, which routes again.
 - **Description-based routing:** Each specialist declares its responsibility in its `description`; the hub uses these, together with explicit routing rules in its instruction, to choose a sub-agent.
 - **Tool calling:** Specialists invoke Python functions (`siparis_durumu_getir`, `politika_ara`) selected by the model from their signatures and docstrings.
 - **Retrieval-augmented generation:** The policy agent does not see the whole policy document. Its tool embeds the customer's question with `gemini-embedding-001`, ranks policy sections by cosine similarity and returns only the top 2 as context.
@@ -16,6 +16,9 @@ This repository is being built incrementally toward a production deployment on G
 - **Business rules enforced in code:** `iade_talebi_olustur` creates a return request only for orders whose status is `teslim edildi`; unknown or undelivered orders get a structured error. The rule holds even when the model is manipulated.
 - **Card-number masking:** A `before_model_callback` on every agent masks card-number-like sequences (13–19 digits, with optional spaces or dashes) across the entire conversation history before it is sent to the model. If the latest message contains one, the model is not called at all and a fixed warning is returned.
 - **Prompt-injection screening:** Known injection phrases in Turkish and English ("talimatlarını unut", "ignore previous instructions", ...) are detected case-insensitively and the request is refused before reaching the model.
+- **HTTP API:** `POST /chat` returns the final reply as JSON; `POST /chat/stream` streams agent events as Server-Sent Events; `/ws/{user_id}/{session_id}` keeps a WebSocket open for multi-turn chat. Requests are validated with Pydantic and documented automatically at `/docs`.
+- **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
+- **Conversation memory:** Messages with the same `session_id` share history through ADK's session service, so follow-ups like "can I return *it*?" resolve against earlier turns.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
 - **Scope control:** Off-topic queries (e.g. weather) are declined by the hub.
 - **Resilience:** Every agent's Gemini model is configured with up to 5 automatic retries to absorb transient `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` responses.
@@ -23,8 +26,12 @@ This repository is being built incrementally toward a production deployment on G
 ## Architecture
 
 ```
-                                   User
-                                    │
+                                  Client
+                                    │  REST /chat · SSE /chat/stream · WebSocket /ws/...
+                                    ▼
+              ┌───────────────────────────────────────────┐
+              │ FastAPI (api.py) → ADK Runner + sessions  │  ajan_olaylari(): one event
+              └─────────────────────┬─────────────────────┘  stream for all transports
                                     ▼
               ┌───────────────────────────────────────────┐
               │ input guardrail (before_model_callback)   │  masks card numbers,
@@ -104,6 +111,9 @@ question ──────────────────────► v
 - **Locale-aware matching:** Python's default case folding maps Turkish `İ`/`I` incorrectly (`"TALİMATLARINI".casefold()` does not match `"talimatlarını"`). Injection phrases are matched against both a Turkish-aware and a default lowercase form, and a regression test covers the case.
 - **Honest guardrail messages:** The masking callback only controls what reaches the model; ADK's local session store still records the raw user message. The user-facing warning therefore states that the number was not sent to the model, rather than claiming it was not stored.
 - **Write operations behind MCP:** Tools that change state are served by a separate MCP server rather than defined inside the agent. This decouples tool implementation from the agent runtime and lets the same tools be reused by any MCP-compatible client.
+- **One event stream, several transports:** `ajan_olaylari()` runs the ADK `Runner` and turns raw ADK events into a small, client-facing event vocabulary. The SSE and WebSocket endpoints only differ in how they serialize those events, so new event types are added in one place.
+- **Strict hub-and-spoke:** Streaming exposed a routing bug that the final-answer-only endpoint hid: for a general shipping-fee question, `policy_agent` transferred to its peer `operations_agent` without consulting the policy document. Disabling peer transfers on all specialists makes the hub the only routing authority; topic changes now go specialist → hub → specialist.
+- **Fast API tests without the model:** API tests use FastAPI's `TestClient` to check request validation (422 on missing or mistyped fields) and endpoint registration. They do not call Gemini, so they run in CI without credentials.
 
 ## Tech stack
 
@@ -111,7 +121,8 @@ question ──────────────────────► v
 - [Google ADK](https://pypi.org/project/google-adk/) for agent definition, orchestration and the dev runner
 - [google-genai](https://pypi.org/project/google-genai/) SDK, chat model `gemini-3.5-flash-lite`, embedding model `gemini-embedding-001`
 - [MCP Python SDK](https://pypi.org/project/mcp/) 2.x (`MCPServer`) for the operations tool server
-- Pydantic v2 for data modeling and validation
+- [FastAPI](https://fastapi.tiangolo.com/) and uvicorn for the HTTP, SSE and WebSocket API
+- Pydantic v2 for data modeling and request validation
 - pytest for testing, ruff for linting and formatting, mypy for static type checking
 
 ## Getting started
@@ -178,6 +189,66 @@ A single specialist can also be run on its own, e.g.:
 uv run --env-file .env adk run src/ai_support_agent/agents/order_agent
 ```
 
+### Running the API
+
+```bash
+uv run --env-file .env uvicorn ai_support_agent.api:app --reload
+```
+
+Interactive docs are served at <http://127.0.0.1:8000/docs>.
+
+**REST**
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","session_id":"s1","message":"SP-1004 nerede?"}'
+```
+
+```json
+{"agent":"order_agent","reply":"SP-1004 numaralı siparişiniz kargodadır. Kargo takip numaranız: TRK-558813."}
+```
+
+**Server-Sent Events**
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"u1","session_id":"s2","message":"Kargo ücreti ne kadar?"}'
+```
+
+```
+event: transfer
+data: {"to": "policy_agent"}
+
+event: tool_call
+data: {"agent": "policy_agent", "tool": "politika_ara"}
+
+event: message
+data: {"agent": "policy_agent", "text": "500 TL ve üzeri siparişlerde kargo ücretsizdir. ... Kaynak: Kargo"}
+
+event: done
+data: {}
+```
+
+**WebSocket** (`/ws/{user_id}/{session_id}`): each text frame sent by the client starts a turn; the server replies with JSON events of the same vocabulary. Two turns on one connection, with a topic change routed back through the hub:
+
+```
+→ SP-1004 nerede?
+{"type": "transfer", "to": "order_agent"}
+{"type": "tool_call", "agent": "order_agent", "tool": "siparis_durumu_getir"}
+{"type": "message", "agent": "order_agent", "text": "SP-1004 numaralı siparişiniz kargodadır. ..."}
+{"type": "done"}
+→ Peki bunu iade edebilir miyim?
+{"type": "transfer", "to": "support_agent"}
+{"type": "transfer", "to": "policy_agent"}
+{"type": "tool_call", "agent": "policy_agent", "tool": "politika_ara"}
+{"type": "message", "agent": "policy_agent", "text": "... bebek yağı ... hijyen nedeniyle iade edilememektedir. ... Kaynak: İade"}
+{"type": "done"}
+```
+
+Sessions are held in memory (`InMemorySessionService`), so conversation history is lost when the server restarts.
+
 ## Development
 
 ```bash
@@ -213,11 +284,13 @@ ai-support-agent/
 │   ├── rag.py                   # chunking, embedding, retrieval
 │   ├── mcp_server.py            # MCP tool server (shipping fee, return requests)
 │   ├── guardrails.py            # card masking, injection screening, ADK callback
+│   ├── api.py                   # FastAPI app: REST, SSE and WebSocket endpoints
 │   └── chat.py                  # week 1 single-agent prototype
 ├── tests/
 │   ├── test_repository.py       # unit tests for the repository
 │   ├── test_rag.py              # unit tests for chunking
 │   ├── test_guardrails.py       # guardrail detection, masking, false positives
+│   ├── test_api.py              # request validation and endpoint registration
 │   └── test_retrieval.py        # retrieval golden set (hit@1)
 └── pyproject.toml
 ```
@@ -234,7 +307,7 @@ ai-support-agent/
   - [x] MCP server with shipping-fee and rule-checked return-request tools, consumed via `McpToolset`
   - [x] Input guardrails: card-number masking across history, prompt-injection screening
   - [ ] Output guardrails and persistent storage for return requests
-- [ ] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
+- [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
 - [ ] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
