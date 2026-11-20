@@ -6,6 +6,8 @@ from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from google.genai import types
 from mcp import StdioServerParameters
 
+from ai_support_agent.guardrails import girdi_kontrolu
+
 operasyon_araclari = McpToolset(
     connection_params=StdioConnectionParams(
         server_params=StdioServerParameters(
@@ -17,11 +19,12 @@ operasyon_araclari = McpToolset(
 
 root_agent = Agent(
     name="operations_agent",
+    before_model_callback=girdi_kontrolu,
     model=Gemini(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),
     ),
-       description="Kargo ücreti hesaplama ve iade talebi oluşturma işlemlerini yapar.",
+    description="Kargo ücreti hesaplama ve iade talebi oluşturma işlemlerini yapar.",
     instruction="""Sen operasyon uzmanısın.
 Kargo ücreti hesaplama isteklerinde mutlaka kargo_ucreti_hesapla aracını kullan.
 İade talebi oluşturmak için sipariş numarası ve iade sebebi gerekir;
