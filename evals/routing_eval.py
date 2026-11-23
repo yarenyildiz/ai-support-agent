@@ -23,13 +23,21 @@ VAKALAR = [
     ("Siparişler genelde kaç günde kargoya veriliyor?", "policy_agent", "politika_ara"),
 ]
 
+# Aynı oturumda art arda sorular: konu değişince doğru uzmana geçiliyor mu?
+# (Eskiden 2. soruyu, son konuşan policy_agent cevaplıyordu.)
+SOHBET = [
+    ("Kargo ücreti ne kadar?", "policy_agent", "politika_ara"),
+    ("320 TL'lik sepetim için kargo ne kadar tutar?", "operations_agent", "kargo_ucreti_hesapla"),
+    ("SP-1004 nerede?", "order_agent", "siparis_durumu_getir"),
+]
+
 BEKLEME_SANIYE = 15  # ücretsiz hesap: dakikada 15 model isteği
 
 
-async def vakayi_calistir(soru: str) -> tuple[str | None, list[str]]:
-    """Soruyu yeni bir oturumda çalıştırır; cevaplayan ajanı ve çağrılan araçları döndürür."""
+async def vakayi_calistir(soru: str, oturum: str | None = None) -> tuple[str | None, list[str]]:
+    """Soruyu çalıştırır (oturum verilmezse yeni oturumda); cevaplayanı ve araçları döndürür."""
     cevaplayan, araclar = None, []
-    async for olay, veri in ajan_olaylari("eval", str(uuid.uuid4()), soru):
+    async for olay, veri in ajan_olaylari("eval", oturum or str(uuid.uuid4()), soru):
         if olay == "tool_call":
             araclar.append(veri["tool"])
         elif olay == "message":
@@ -37,19 +45,31 @@ async def vakayi_calistir(soru: str) -> tuple[str | None, list[str]]:
     return cevaplayan, araclar
 
 
+def degerlendir(soru: str, beklenen_ajan: str, beklenen_arac: str | None, sonuc) -> bool:
+    """Cevaplayan ajan ve araç beklenenle uyuşuyor mu; sonucu yazdırır."""
+    cevaplayan, araclar = sonuc
+    arac_dogru = (beklenen_arac in araclar) if beklenen_arac else not araclar
+    basarili = cevaplayan == beklenen_ajan and arac_dogru
+    print(f"{'✓' if basarili else '✗'} {soru}\n    → {cevaplayan} {araclar}")
+    return basarili
+
+
 async def main() -> None:
     gecen = 0
-    for sira, (soru, beklenen_ajan, beklenen_arac) in enumerate(VAKALAR):
+    for sira, (soru, ajan, arac) in enumerate(VAKALAR):
         if sira > 0:
             await asyncio.sleep(BEKLEME_SANIYE)
-        cevaplayan, araclar = await vakayi_calistir(soru)
-        arac_dogru = (beklenen_arac in araclar) if beklenen_arac else not araclar
-        basarili = cevaplayan == beklenen_ajan and arac_dogru
-        gecen += basarili
-        isaret = "✓" if basarili else "✗"
-        print(f"{isaret} {soru}\n    → {cevaplayan} {araclar}")
-    print(f"\nSonuç: {gecen}/{len(VAKALAR)}")
-    if gecen < len(VAKALAR):
+        gecen += degerlendir(soru, ajan, arac, await vakayi_calistir(soru))
+
+    print("\nÇok turlu sohbet (aynı oturum):")
+    oturum = str(uuid.uuid4())
+    for soru, ajan, arac in SOHBET:
+        await asyncio.sleep(BEKLEME_SANIYE)
+        gecen += degerlendir(soru, ajan, arac, await vakayi_calistir(soru, oturum))
+
+    toplam = len(VAKALAR) + len(SOHBET)
+    print(f"\nSonuç: {gecen}/{toplam}")
+    if gecen < toplam:
         raise SystemExit(1)
 
 

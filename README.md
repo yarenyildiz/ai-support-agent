@@ -8,7 +8,7 @@ This repository is being built incrementally toward a production deployment on G
 
 ## Current capabilities
 
-- **Hub-and-spoke orchestration:** `support_agent` handles greetings and off-topic requests itself and transfers domain questions to the right specialist (`order_agent`, `policy_agent` or `operations_agent`) using ADK's LLM-driven agent transfer. It distinguishes similar intents, e.g. "what is the return period?" (policy) vs. "I want to return SP-1006" (operation). Specialists cannot transfer to each other (`disallow_transfer_to_peers=True`); when the topic changes mid-conversation they hand control back to the hub, which routes again.
+- **Hub-and-spoke orchestration:** `support_agent` handles greetings and off-topic requests itself and transfers domain questions to the right specialist (`order_agent`, `policy_agent` or `operations_agent`) using ADK's LLM-driven agent transfer. It distinguishes similar intents, e.g. "what is the return period?" (policy) vs. "I want to return SP-1006" (operation). Specialists cannot transfer to each other or back up (`disallow_transfer_to_peers=True`, `disallow_transfer_to_parent=True`), so ADK starts every new turn at the hub, which routes again. Without this, the specialist that answered last kept the next turn and sometimes answered out-of-scope questions itself (found by `evals/token_usage.py`, now covered by a unit test and multi-turn eval cases).
 - **Description-based routing:** Each specialist declares its responsibility in its `description`; the hub uses these, together with explicit routing rules in its instruction, to choose a sub-agent.
 - **Tool calling:** Specialists invoke Python functions (`siparis_durumu_getir`, `politika_ara`) selected by the model from their signatures and docstrings.
 - **Retrieval-augmented generation:** The policy agent does not see the whole policy document. Its tool embeds the customer's question with `gemini-embedding-001`, ranks policy sections by cosine similarity and returns only the top 2 as context.
@@ -24,7 +24,7 @@ This repository is being built incrementally toward a production deployment on G
 - **HTTP API:** `POST /chat` returns the final reply as JSON; `POST /chat/stream` streams agent events as Server-Sent Events; `/ws/{user_id}/{session_id}` keeps a WebSocket open for multi-turn chat. Requests are validated with Pydantic and documented automatically at `/docs`.
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
 - **Persistent conversation memory:** Messages with the same `session_id` share history through ADK's `DatabaseSessionService` (SQLite via async `aiosqlite`, `data/sessions.db`, git-ignored). Sessions survive server restarts, so a follow-up like "can I return *it*?" asked after a restart still resolves to the order discussed earlier.
-- **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
+- **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called, both for single questions and for a multi-turn conversation that switches topics (trajectory eval, currently **10/10**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
 - **Containerized:** A `Dockerfile` packages the API with `uv sync --frozen --no-dev` (same locked versions as development), runs as a non-root user and exposes a `/health` endpoint that does not call the model. CI builds the image and starts the container on every push and pull request.
 - **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
 - **Cross-session customer memory:** Facts about a customer (orders they asked about, return requests they opened) are kept in SQLite (`data/memory.db`, git-ignored) and injected into the hub's instruction in later conversations, so "what did I do last time?" is answered from real records. Notes are written by an `after_tool_callback` from **successful tool results**, not from model text, so nothing the model invents can enter memory.
@@ -323,7 +323,7 @@ uv run --env-file .env python evals/token_usage.py      # prompt size and cache 
 ✓ 320 TL'lik sepetim için kargo ne kadar tutar?
     → operations_agent ['kargo_ucreti_hesapla']
 ...
-Sonuç: 7/7
+Sonuç: 10/10
 ```
 
 ```
@@ -393,6 +393,7 @@ ai-support-agent/
 │   ├── test_sessions.py         # sessions survive a service restart
 │   ├── test_memory.py           # memory isolation, dedup, persistence, note extraction
 │   ├── test_hybrid.py           # Turkish tokenization, BM25 ranking, RRF fusion
+│   ├── test_routing.py          # every new turn starts at the hub
 │   └── test_retrieval.py        # retrieval golden set (hit@1)
 ├── evals/
 │   ├── routing_eval.py          # routing and tool-trajectory eval
@@ -419,7 +420,7 @@ ai-support-agent/
 - [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
 - [x] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
   - [x] CI: lint, format check and tests on every push (GitHub Actions)
-  - [x] Routing / tool-trajectory eval (7/7)
+  - [x] Routing / tool-trajectory eval, including a multi-turn topic switch (10/10)
   - [x] LLM-as-judge answer eval with negative control (5/5)
   - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)

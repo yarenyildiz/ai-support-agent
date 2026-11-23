@@ -24,6 +24,8 @@ root_agent = Agent(
     after_model_callback=cikti_kontrolu,
     after_tool_callback=hafizaya_yaz,
     disallow_transfer_to_peers=True,
+    # Her yeni tur merkezden başlasın: konu değişince yönlendirmeyi hub yapar.
+    disallow_transfer_to_parent=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",
         retry_options=types.HttpRetryOptions(attempts=5),
