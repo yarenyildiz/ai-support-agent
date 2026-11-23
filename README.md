@@ -230,7 +230,7 @@ The API key is passed as an environment variable at run time and is never baked 
 When the `API_KEY` environment variable is set, `/chat` and `/chat/stream` require a matching `X-API-Key` header (401 otherwise) and the WebSocket requires `?api_key=...` (closed with code 1008 otherwise). `/health` stays open for the platform's health checks. Keys are compared with `secrets.compare_digest`. Locally, with `API_KEY` unset, the API stays open. This protects the Gemini quota once the service is reachable from the internet.
 
 ```bash
-curl -X POST https://<your-service>.onrender.com/chat \
+curl -X POST https://ai-support-agent-0yi8.onrender.com/chat \
   -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
   -d '{"user_id":"u1","session_id":"s1","message":"SP-1004 nerede?"}'
 ```
@@ -399,7 +399,7 @@ ai-support-agent/
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
   - [x] Docker image with `/health`, built and smoke-tested in CI (free stand-in for GKE packaging)
   - [x] API key protection (`X-API-Key`) and Render Blueprint for a free deployment
-  - [ ] Public deployment on a free host (Render)
+  - [x] Public deployment on Render's free plan: https://ai-support-agent-0yi8.onrender.com (`/health` is open, chat endpoints need the API key)
   - [ ] Google Cloud services (need a paid Google Cloud account)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
   - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
