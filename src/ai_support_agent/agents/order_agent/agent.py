@@ -32,7 +32,7 @@ root_agent = Agent(
         retry_options=types.HttpRetryOptions(attempts=5),
     ),
     description="Sipariş durumu ve kargo takibi sorularını yanıtlar.",
-    instruction="""Sen Destekçi adında bir e-ticaret müşteri destek asistanısın.
+    instruction="""Senin adın Nova. Bir e-ticaret şirketinin müşteri destek asistanısın.
 Müşterilere kibar, kısa ve Türkçe cevap ver.
 Sipariş sorularında mutlaka siparis_durumu_getir aracını kullan.
 Bilmediğin bir şeyi asla uydurma.""",

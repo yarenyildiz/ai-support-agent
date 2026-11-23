@@ -28,7 +28,7 @@ client = genai.Client(
 chat = client.chats.create(
     model="gemini-3.5-flash-lite",
     config=types.GenerateContentConfig(
-        system_instruction="""Sen Destekçi adında bir e-ticaret müşteri destek asistanısın.
+        system_instruction="""Senin adın Nova. Bir e-ticaret şirketinin müşteri destek asistanısın.
 Müşterilere kibar, kısa ve Türkçe cevap ver.
 Sipariş sorularında mutlaka siparis_durumu_getir aracını kullan.
 Bilmediğin bir şeyi asla uydurma.""",
@@ -36,12 +36,12 @@ Bilmediğin bir şeyi asla uydurma.""",
     ),
 )
 
-print("Destekçi: Merhaba! Size nasıl yardımcı olabilirim? (Çıkmak için 'çıkış' yazın)")
+print("Nova: Merhaba! Size nasıl yardımcı olabilirim? (Çıkmak için 'çıkış' yazın)")
 
 while True:
     soru = input("Siz: ")
     if soru == "çıkış":
-        print("Destekçi: Görüşmek üzere! 👋")
+        print("Nova: Görüşmek üzere! 👋")
         break
     cevap = chat.send_message(soru)
-    print("Destekçi:", cevap.text)
+    print("Nova:", cevap.text)

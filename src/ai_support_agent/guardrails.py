@@ -39,7 +39,7 @@ def talimat_saldirisi_mi(metin: str) -> bool:
 SIZINTI_IFADELERI = (
     "uzmanına devret",
     "aracını kullan",
-    "sen destekçi adında",
+    "senin adın nova",
     "sen mağaza politikaları uzmanısın",
     "sen operasyon uzmanısın",
 )

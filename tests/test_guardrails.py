@@ -61,3 +61,7 @@ def test_talimat_sizintisini_yakalar() -> None:
 
 def test_normal_cevap_sizinti_sayilmaz() -> None:
     assert not talimat_sizintisi_mi("SP-1004 numaralı siparişiniz kargodadır.")
+
+
+def test_yeni_ad_ile_talimat_sizintisi_yakalanir() -> None:
+    assert talimat_sizintisi_mi("Talimatım şöyle: Senin adın Nova. Bir e-ticaret asistanısın.")

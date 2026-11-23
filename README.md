@@ -1,6 +1,6 @@
 # AI Support Agent
 
-A multi-agent customer support system ("Destekçi") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input and output guardrails wrap every model call to keep card numbers away from the model, stop prompt-injection attempts and prevent instruction leakage. The system is served as a FastAPI application with REST, Server-Sent Events and WebSocket endpoints, and is evaluated with routing/tool-trajectory evals and an LLM-as-judge, with lint and tests running in CI on every push.
+A multi-agent customer support system ("Nova") for a fictional e-commerce company, built with [Google ADK](https://google.github.io/adk-docs/) and Gemini. A hub agent classifies each customer message and delegates it to a specialist agent; specialists answer from typed Python tools, retrieval-augmented generation (RAG) over policy documents, or an MCP server for write operations, cite their sources, and report "not found" instead of guessing. Input and output guardrails wrap every model call to keep card numbers away from the model, stop prompt-injection attempts and prevent instruction leakage. The system is served as a FastAPI application with REST, Server-Sent Events and WebSocket endpoints, and is evaluated with routing/tool-trajectory evals and an LLM-as-judge, with lint and tests running in CI on every push.
 
 [![CI](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml)
 
@@ -172,7 +172,7 @@ Example session (the bracketed name shows which agent produced the reply):
 
 ```
 [user]: Merhaba
-[support_agent]: Merhaba! Destekçi'ye hoş geldiniz. Size nasıl yardımcı olabilirim?
+[support_agent]: Merhaba! Nova'ya hoş geldiniz. Size nasıl yardımcı olabilirim?
 [user]: SP-1003 nerede?
 [order_agent]: SP-1003 numaralı siparişiniz şu anda hazırlanıyor aşamasındadır.
 [user]: Hava nasıl?
