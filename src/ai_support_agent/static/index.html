@@ -6,107 +6,223 @@
 <title>Destekçi · AI Support Agent</title>
 <style>
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e4e7ec;
-    --accent: #3b5bdb; --accent-text: #ffffff; --user: #3b5bdb; --bot: #f1f3f7;
-    --transfer: #7048e8; --tool: #0c8599; --error: #c92a2a;
+    --g1: #6a3df0; --g2: #4f46e5; --g3: #2563eb; --g4: #06b6d4;
+    --glass: rgba(255, 255, 255, 0.14); --glass-strong: rgba(255, 255, 255, 0.22);
+    --glass-line: rgba(255, 255, 255, 0.28);
+    --text: #ffffff; --muted: rgba(255, 255, 255, 0.72);
+    --ink: #1e1b4b; --ink-muted: #6b7280; --paper: #ffffff;
+    --error-bg: rgba(255, 90, 90, 0.22);
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #12141a; --panel: #1a1d25; --text: #e6e8ee; --muted: #9098a9; --line: #2a2f3a;
-      --accent: #5c7cfa; --user: #4263eb; --bot: #232733;
-      --transfer: #9775fa; --tool: #3bc9db; --error: #ff6b6b;
-    }
+    :root { --g1: #3b1d9a; --g2: #312e81; --g3: #1e3a8a; --g4: #0e7490; --paper: #f4f4ff; }
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
+    margin: 0; color: var(--text);
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #2a1f7a linear-gradient(135deg, var(--g1) 0%, var(--g2) 35%, var(--g3) 70%, var(--g4) 100%) fixed;
+    display: flex; justify-content: center;
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; min-height: 100vh; display: flex; flex-direction: column; gap: 12px; }
-  header h1 { margin: 0; font-size: 22px; }
-  header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-  header a { color: var(--accent); }
-  .ayar { display: flex; gap: 8px; flex-wrap: wrap; }
-  .ayar input { flex: 1 1 220px; }
-  input, textarea, button { font: inherit; color: inherit; }
-  input, textarea {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  button, input, textarea { font: inherit; color: inherit; }
+
+  /* Telefon gibi bir uygulama kabı; büyük ekranda ortada durur. */
+  .app {
+    width: 100%; max-width: 480px; height: 100dvh; display: flex; flex-direction: column;
   }
-  #yeni {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  @media (min-width: 640px) {
+    body { align-items: center; padding: 24px 16px; }
+    .app {
+      height: min(860px, calc(100dvh - 48px)); border-radius: 32px; overflow: hidden;
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--glass-line);
+      box-shadow: 0 30px 80px rgba(20, 10, 60, 0.45);
+    }
   }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  #sohbet {
-    flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 320px;
+
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px;
   }
-  .bos { color: var(--muted); margin: auto; text-align: center; font-size: 14px; }
-  .balon { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .kullanici { align-self: flex-end; background: var(--user); color: #fff; border-bottom-right-radius: 4px; }
-  .ajan { align-self: flex-start; background: var(--bot); border-bottom-left-radius: 4px; }
-  .ajan .kim { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-  .adim { align-self: flex-start; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-  .adim b { font-weight: 600; }
-  .adim.transfer b { color: var(--transfer); }
-  .adim.arac b { color: var(--tool); }
-  .hata { align-self: stretch; color: var(--error); font-size: 14px; }
-  .bekle::after { content: "…"; animation: nokta 1.2s steps(4) infinite; display: inline-block; width: 1em; overflow: hidden; vertical-align: bottom; }
-  @keyframes nokta { from { width: 0; } to { width: 1em; } }
-  .ornekler { display: flex; gap: 6px; flex-wrap: wrap; }
-  .ornekler button {
-    background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px;
-    font-size: 13px; color: var(--muted); cursor: pointer;
+  header .ad { flex: 1; min-width: 0; }
+  header h1 { margin: 0; font-size: 17px; }
+  header small { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  header small::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #4ade80; flex: none; }
+  .ikon-btn {
+    width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--glass-line);
+    background: var(--glass); display: grid; place-items: center; cursor: pointer;
   }
-  .ornekler button:hover { border-color: var(--accent); color: var(--accent); }
-  form { display: flex; gap: 8px; }
-  form textarea { flex: 1; min-width: 0; resize: none; height: 46px; }
-  form button {
-    background: var(--accent); color: var(--accent-text); border: 0; border-radius: 10px; padding: 0 18px;
-    cursor: pointer; font-weight: 600;
+  .ikon-btn:hover { background: var(--glass-strong); }
+  .avatar { width: 38px; height: 38px; border-radius: 12px; background: var(--paper); display: grid; place-items: center; flex: none; }
+
+  /* Ayarlar paneli (erişim anahtarı) */
+  #ayarlar {
+    margin: 0 16px 8px; padding: 14px; border-radius: 18px; background: var(--glass-strong);
+    border: 1px solid var(--glass-line); display: none;
   }
-  form button:disabled { opacity: .5; cursor: default; }
-  footer { color: var(--muted); font-size: 12px; text-align: center; }
+  #ayarlar.acik { display: block; }
+  #ayarlar label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  #ayarlar input {
+    width: 100%; padding: 10px 12px; border-radius: 12px; border: 0; background: var(--paper); color: var(--ink);
+  }
+  #ayarlar p { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  #ayarlar a { color: var(--text); }
+
+  main { flex: 1; overflow-y: auto; padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* Karşılama ekranı */
+  .karsilama { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 8px; }
+  .robot { width: 132px; height: 132px; animation: suzul 4s ease-in-out infinite; filter: drop-shadow(0 16px 24px rgba(20, 10, 60, 0.35)); }
+  @keyframes suzul { 50% { transform: translateY(-8px); } }
+  @media (prefers-reduced-motion: reduce) { .robot { animation: none; } }
+  .karsilama h2 { margin: 4px 0 0; font-size: 24px; line-height: 1.25; }
+  .karsilama p { margin: 0; color: var(--muted); font-size: 14px; max-width: 320px; }
+  .kartlar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin-top: 14px; }
+  .kart {
+    text-align: left; border: 1px solid var(--glass-line); background: var(--glass); border-radius: 20px;
+    padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; min-height: 112px;
+    transition: transform .15s, background .15s;
+  }
+  .kart:hover { background: var(--glass-strong); transform: translateY(-2px); }
+  .kart .e { font-size: 22px; }
+  .kart b { font-size: 14px; }
+  .kart span { font-size: 12px; color: var(--muted); }
+  .kart.genis { grid-column: span 2; flex-direction: row; align-items: center; min-height: 0; }
+  .kart.genis .e { width: 40px; height: 40px; border-radius: 12px; background: var(--glass-strong); display: grid; place-items: center; flex: none; }
+  .kart.genis div { display: flex; flex-direction: column; }
+
+  /* Sohbet */
+  .satir { display: flex; gap: 8px; align-items: flex-end; }
+  .satir.kullanici { justify-content: flex-end; }
+  .satir .avatar { width: 30px; height: 30px; border-radius: 10px; }
+  .balon { max-width: 82%; padding: 10px 14px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kullanici .balon { background: var(--paper); color: var(--ink); border-bottom-right-radius: 6px; }
+  .ajan .balon {
+    background: var(--glass-strong); border: 1px solid var(--glass-line); border-bottom-left-radius: 6px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .ajan .kim { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; letter-spacing: .02em; }
+  .adim {
+    align-self: flex-start; margin-left: 38px; font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18); color: var(--muted); overflow-wrap: anywhere;
+  }
+  .adim b { color: var(--text); font-weight: 600; }
+  .bekle { display: flex; gap: 4px; padding: 10px 12px; }
+  .bekle i { width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: .5; animation: zipla 1s infinite; }
+  .bekle i:nth-child(2) { animation-delay: .15s; } .bekle i:nth-child(3) { animation-delay: .3s; }
+  @keyframes zipla { 50% { opacity: 1; transform: translateY(-3px); } }
+  .hata { align-self: stretch; background: var(--error-bg); border: 1px solid var(--glass-line); padding: 10px 12px; border-radius: 14px; font-size: 14px; }
+
+  /* Mesaj kutusu */
+  form {
+    margin: 0 12px 12px; padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--paper);
+    display: flex; align-items: center; gap: 6px; box-shadow: 0 10px 30px rgba(20, 10, 60, 0.3);
+  }
+  form input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); padding: 8px 0; }
+  form input::placeholder { color: var(--ink-muted); }
+  #gonder {
+    width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; flex: none;
+    background: linear-gradient(135deg, var(--g1), var(--g3)); display: grid; place-items: center;
+  }
+  #gonder:disabled { opacity: .45; cursor: default; }
+  .not { text-align: center; font-size: 11px; color: var(--muted); margin: -4px 16px 10px; }
+  :focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
   <header>
-    <h1>Destekçi</h1>
-    <p>Çok ajanlı müşteri destek asistanı (Google ADK + Gemini). Mesajınız önce ana ajana gider,
-      o da doğru uzmana devreder. Arka planda olan her adım aşağıda canlı görünür.
-      <a href="/docs">API dokümantasyonu</a> ·
-      <a href="https://github.com/yarenyildiz/ai-support-agent">GitHub</a></p>
+    <div class="avatar" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 64 64"><use href="#robot-yuz"/></svg>
+    </div>
+    <div class="ad">
+      <h1>Destekçi</h1>
+      <small>Çevrimiçi · 4 ajan</small>
+    </div>
+    <button class="ikon-btn" id="yeni" type="button" title="Yeni sohbet" aria-label="Yeni sohbet">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="ikon-btn" id="ayar-btn" type="button" title="Erişim anahtarı" aria-label="Erişim anahtarı" aria-expanded="false" aria-controls="ayarlar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M17 6l2 2M15 8l2 2"/></svg>
+    </button>
   </header>
 
-  <div class="ayar">
-    <input id="anahtar" type="password" placeholder="Erişim anahtarı (X-API-Key)" autocomplete="off"
-           aria-label="Erişim anahtarı">
-    <button id="yeni" type="button">Yeni sohbet</button>
-  </div>
+  <section id="ayarlar">
+    <label for="anahtar">Erişim anahtarı (X-API-Key)</label>
+    <p id="ayar-uyari" hidden style="margin:0 0 8px;color:var(--text)">🔑 Mesaj göndermek için önce anahtarı girin.</p>
+    <input id="anahtar" type="password" autocomplete="off" placeholder="Anahtarı yapıştırın">
+    <p>Anahtar sadece bu tarayıcıda saklanır. ·
+      <a href="/docs">API dokümantasyonu</a> ·
+      <a href="https://github.com/yarenyildiz/ai-support-agent">GitHub</a></p>
+  </section>
 
-  <main id="sohbet" aria-live="polite">
-    <p class="bos">Bir soru yazın ya da aşağıdaki örneklerden birini seçin.<br>
-      Sunucu bir süredir kullanılmadıysa ilk cevap yaklaşık 1 dakika sürebilir.</p>
-  </main>
-
-  <div class="ornekler">
-    <button type="button">SP-1004 nerede?</button>
-    <button type="button">Kargo ücreti ne kadar?</button>
-    <button type="button">320 TL'lik sepetim için kargo ne kadar tutar?</button>
-    <button type="button">SP-1006 ceketimi iade etmek istiyorum, bedeni küçük</button>
-  </div>
+  <main id="sohbet" aria-live="polite"></main>
 
   <form id="form">
-    <textarea id="mesaj" placeholder="Mesaj yazın…" aria-label="Mesaj" required></textarea>
-    <button id="gonder" type="submit">Gönder</button>
+    <input id="mesaj" placeholder="Bir soru sorun…" aria-label="Mesaj" autocomplete="off">
+    <button id="gonder" type="submit" aria-label="Gönder">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    </button>
   </form>
-
-  <footer>Örnek siparişler: SP-1001 … SP-1008. Kart numarası yazarsanız modele gönderilmeden maskelenir.</footer>
+  <p class="not">Kart numarası yazarsanız modele gönderilmeden maskelenir.</p>
 </div>
+
+<!-- Kendi çizdiğimiz robot: büyük maskot ve küçük avatar aynı yüzü kullanır. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="govde" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe3ff"/>
+    </linearGradient>
+    <symbol id="robot-yuz" viewBox="0 0 64 64">
+      <rect x="8" y="14" width="48" height="38" rx="16" fill="#4f46e5"/>
+      <rect x="14" y="21" width="36" height="24" rx="11" fill="#1e1b4b"/>
+      <rect x="21" y="29" width="7" height="7" rx="3.5" fill="#67e8f9"/>
+      <rect x="36" y="29" width="7" height="7" rx="3.5" fill="#67e8f9"/>
+      <rect x="30" y="5" width="4" height="9" rx="2" fill="#4f46e5"/>
+      <circle cx="32" cy="5" r="4" fill="#06b6d4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<template id="karsilama">
+  <div class="karsilama">
+    <svg class="robot" viewBox="0 0 140 140" aria-hidden="true">
+      <ellipse cx="70" cy="132" rx="34" ry="5" fill="rgba(0,0,0,.18)"/>
+      <rect x="66" y="10" width="8" height="16" rx="4" fill="#c7cdfa"/>
+      <circle cx="70" cy="10" r="8" fill="#22d3ee"/>
+      <rect x="22" y="24" width="96" height="70" rx="30" fill="url(#govde)"/>
+      <rect x="34" y="38" width="72" height="42" rx="20" fill="#1e1b4b"/>
+      <rect x="49" y="52" width="14" height="12" rx="6" fill="#67e8f9"/>
+      <rect x="77" y="52" width="14" height="12" rx="6" fill="#67e8f9"/>
+      <path d="M60 71q10 6 20 0" stroke="#67e8f9" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <rect x="12" y="50" width="12" height="22" rx="6" fill="#c7cdfa"/>
+      <rect x="116" y="50" width="12" height="22" rx="6" fill="#c7cdfa"/>
+      <path d="M44 98h52a10 10 0 0 1 10 10v6a12 12 0 0 1-12 12H46a12 12 0 0 1-12-12v-6a10 10 0 0 1 10-10z" fill="url(#govde)"/>
+      <circle cx="70" cy="112" r="5" fill="#a78bfa"/>
+    </svg>
+    <h2>Merhaba!<br>Size nasıl yardımcı olabilirim?</h2>
+    <p>Sorunuzu ana ajan okur ve doğru uzmana devreder. Arka planda olan her adım burada canlı görünür.</p>
+    <div class="kartlar">
+      <button class="kart" type="button" data-soru="SP-1004 nerede?">
+        <span class="e">📦</span><b>Sipariş takibi</b><span>SP-1004 nerede?</span></button>
+      <button class="kart" type="button" data-soru="Kargo ücreti ne kadar?">
+        <span class="e">📄</span><b>Mağaza politikası</b><span>Kargo ücreti ne kadar?</span></button>
+      <button class="kart genis" type="button" data-soru="320 TL'lik sepetim için kargo ne kadar tutar?">
+        <span class="e">🧮</span><div><b>Kargo hesapla</b><span>320 TL'lik sepetim için kargo ne kadar tutar?</span></div></button>
+      <button class="kart genis" type="button" data-soru="SP-1006 ceketimi iade etmek istiyorum, bedeni küçük">
+        <span class="e">↩️</span><div><b>İade talebi</b><span>SP-1006 ceketimi iade etmek istiyorum, bedeni küçük</span></div></button>
+    </div>
+  </div>
+</template>
 
 <script>
   const $ = (id) => document.getElementById(id);
   const sohbet = $("sohbet"), mesaj = $("mesaj"), gonder = $("gonder"), anahtar = $("anahtar");
+  const ayarlar = $("ayarlar"), ayarBtn = $("ayar-btn");
+
+  const UZMANLAR = {
+    support_agent: "Ana ajan", order_agent: "Sipariş uzmanı",
+    policy_agent: "Politika uzmanı", operations_agent: "Operasyon uzmanı",
+  };
+  const ad = (a) => UZMANLAR[a] || a;
 
   // Tarayıcıya özel küçük kolaylıklar: anahtar ve kullanıcı kimliği hatırlanır.
   const sakla = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -118,34 +234,58 @@
   sakla("user_id", kullanici);
   let oturum = crypto.randomUUID();
 
+  function ayarlariAc(ac) {
+    ayarlar.classList.toggle("acik", ac);
+    ayarBtn.setAttribute("aria-expanded", String(ac));
+    if (ac) anahtar.focus();
+  }
+  ayarBtn.addEventListener("click", () => ayarlariAc(!ayarlar.classList.contains("acik")));
+
+  function karsilamaGoster() {
+    sohbet.replaceChildren($("karsilama").content.cloneNode(true));
+    sohbet.querySelectorAll(".kart").forEach((k) =>
+      k.addEventListener("click", () => { if (!gonder.disabled) sor(k.dataset.soru); }));
+  }
+
+  const kacir = (t) => String(t).replace(/[&<>"']/g, (c) =>
+    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const ROBOT = '<div class="avatar" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 64 64"><use href="#robot-yuz"/></svg></div>';
+
   function ekle(sinif, html) {
-    sohbet.querySelector(".bos")?.remove();
+    sohbet.querySelector(".karsilama")?.remove();
     const el = document.createElement("div");
     el.className = sinif;
     el.innerHTML = html;
     sohbet.appendChild(el);
-    const bekle = sohbet.querySelector(".bekle");
-    if (bekle && bekle !== el) sohbet.appendChild(bekle);  // "Düşünüyor" hep en altta kalsın
+    const bekle = sohbet.querySelector(".bekle-satir");
+    if (bekle && bekle !== el) sohbet.appendChild(bekle);  // yazıyor göstergesi hep en altta
     sohbet.scrollTop = sohbet.scrollHeight;
     return el;
   }
-  const kacir = (t) => String(t).replace(/[&<>"']/g, (c) =>
-    ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
   function olayiGoster(olay, veri) {
-    if (olay === "transfer") ekle("adim transfer", `🔀 <b>${kacir(veri.to)}</b> devraldı`);
-    else if (olay === "tool_call") ekle("adim arac", `🔧 ${kacir(veri.agent)} → <b>${kacir(veri.tool)}</b> aracını çağırdı`);
-    else if (olay === "message") {
+    if (olay === "transfer") {
+      ekle("adim", `🔀 <b>${kacir(ad(veri.to))}</b> devraldı`);
+    } else if (olay === "tool_call") {
+      ekle("adim", `🔧 ${kacir(ad(veri.agent))} → <b>${kacir(veri.tool)}</b>`);
+    } else if (olay === "message") {
       // Model **kalın** yazabiliyor; önce kaçırıp sonra sadece kalın biçimini açıyoruz (XSS güvenli).
       const metin = kacir(veri.text).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
-      ekle("balon ajan", `<span class="kim">${kacir(veri.agent)}</span>${metin}`);
+      ekle("satir ajan", `${ROBOT}<div class="balon"><span class="kim">${kacir(ad(veri.agent))} · ${kacir(veri.agent)}</span>${metin}</div>`);
+    } else if (olay === "error") {
+      ekle("hata", "⚠️ " + kacir(veri.message));
     }
-    else if (olay === "error") ekle("hata", "⚠️ " + kacir(veri.message));
   }
 
   async function sor(metin) {
-    ekle("balon kullanici", kacir(metin));
-    const bekle = ekle("adim bekle", "Düşünüyor");
+    if (!anahtar.value.trim()) {
+      $("ayar-uyari").hidden = false;
+      ayarlariAc(true);
+      return;
+    }
+    $("ayar-uyari").hidden = true;
+    ekle("satir kullanici", `<div class="balon">${kacir(metin)}</div>`);
+    const bekle = ekle("satir ajan bekle-satir", `${ROBOT}<div class="balon bekle" aria-label="Yazıyor"><i></i><i></i><i></i></div>`);
     gonder.disabled = true;
     try {
       const yanit = await fetch("/chat/stream", {
@@ -153,7 +293,7 @@
         headers: { "Content-Type": "application/json", "X-API-Key": anahtar.value.trim() },
         body: JSON.stringify({ user_id: kullanici, session_id: oturum, message: metin }),
       });
-      if (yanit.status === 401) throw new Error("Erişim anahtarı eksik ya da yanlış.");
+      if (yanit.status === 401) { ayarlariAc(true); throw new Error("Erişim anahtarı eksik ya da yanlış."); }
       if (!yanit.ok) throw new Error(`Sunucu hatası (${yanit.status}). Biraz sonra tekrar deneyin.`);
 
       // SSE akışını okuyup "event:/data:" bloklarına ayırıyoruz (EventSource POST desteklemiyor).
@@ -188,15 +328,8 @@
     mesaj.value = "";
     sor(metin);
   });
-  mesaj.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
-  });
-  document.querySelectorAll(".ornekler button").forEach((b) =>
-    b.addEventListener("click", () => { if (!gonder.disabled) sor(b.textContent); }));
-  $("yeni").addEventListener("click", () => {
-    oturum = crypto.randomUUID();
-    sohbet.innerHTML = '<p class="bos">Yeni sohbet başladı.</p>';
-  });
+  $("yeni").addEventListener("click", () => { oturum = crypto.randomUUID(); karsilamaGoster(); });
+  karsilamaGoster();
 </script>
 </body>
 </html>
