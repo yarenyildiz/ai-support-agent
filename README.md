@@ -25,6 +25,7 @@ This repository is being built incrementally toward a production deployment on G
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
 - **Persistent conversation memory:** Messages with the same `session_id` share history through ADK's `DatabaseSessionService` (SQLite via async `aiosqlite`, `data/sessions.db`, git-ignored). Sessions survive server restarts, so a follow-up like "can I return *it*?" asked after a restart still resolves to the order discussed earlier.
 - **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
+- **Containerized:** A `Dockerfile` packages the API with `uv sync --frozen --no-dev` (same locked versions as development), runs as a non-root user and exposes a `/health` endpoint that does not call the model. CI builds the image and starts the container on every push and pull request.
 - **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
 - **Cross-session customer memory:** Facts about a customer (orders they asked about, return requests they opened) are kept in SQLite (`data/memory.db`, git-ignored) and injected into the hub's instruction in later conversations, so "what did I do last time?" is answered from real records. Notes are written by an `after_tool_callback` from **successful tool results**, not from model text, so nothing the model invents can enter memory.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
@@ -214,6 +215,16 @@ uv run --env-file .env uvicorn ai_support_agent.api:app --reload
 
 Interactive docs are served at <http://127.0.0.1:8000/docs>.
 
+### Running with Docker
+
+```bash
+docker build -t ai-support-agent .
+docker run -p 7860:7860 -e GEMINI_API_KEY=your_api_key ai-support-agent
+curl http://127.0.0.1:7860/health    # {"status":"ok"}
+```
+
+The API key is passed as an environment variable at run time and is never baked into the image; `.dockerignore` keeps `.env`, local databases and tests out of the build context.
+
 **REST**
 
 ```bash
@@ -314,7 +325,9 @@ Sonuç: 5/5
 
 ```
 ai-support-agent/
-├── .github/workflows/ci.yml     # lint, format check and tests on every push
+├── .github/workflows/ci.yml     # lint, format check, tests, Docker build + /health check
+├── .github/workflows/evals.yml  # live-model evals, on demand and weekly
+├── Dockerfile                   # production image (uv, non-root, port 7860)
 ├── data/
 │   ├── orders.json              # sample order data
 │   └── policies.md              # store policies (returns, shipping, delivery, cancellation)
@@ -371,6 +384,9 @@ ai-support-agent/
   - [x] LLM-as-judge answer eval with negative control (5/5)
   - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
+  - [x] Docker image with `/health`, built and smoke-tested in CI (free stand-in for GKE packaging)
+  - [ ] Public deployment on a free host
+  - [ ] Google Cloud services (need a paid Google Cloud account)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
   - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
   - [x] Cross-session customer memory derived from tool results (free stand-in for Memory Bank)
