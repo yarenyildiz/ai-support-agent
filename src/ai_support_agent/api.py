@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import DatabaseSessionService
 from google.genai import types
 from pydantic import BaseModel
 
@@ -12,7 +12,7 @@ from ai_support_agent.agents.support_agent.agent import root_agent
 
 APP_NAME = "ai_support_agent"
 
-session_service = InMemorySessionService()
+session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///data/sessions.db")
 runner = Runner(
     app_name=APP_NAME,
     agent=root_agent,

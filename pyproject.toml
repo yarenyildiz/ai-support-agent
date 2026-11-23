@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.163.2",
-    "google-adk>=2.14",
+    "google-adk[db]>=2.14",
     "google-genai>=2.30,<3",
     "mcp>=2.3.0",
     "pydantic>=2.14.3",

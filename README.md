@@ -22,7 +22,7 @@ This repository is being built incrementally toward a production deployment on G
 - **Output guardrail:** An `after_model_callback` on every agent inspects each model response before it reaches the customer. Responses that echo internal instruction phrases are replaced with a refusal, and any card-number-like sequence is masked.
 - **HTTP API:** `POST /chat` returns the final reply as JSON; `POST /chat/stream` streams agent events as Server-Sent Events; `/ws/{user_id}/{session_id}` keeps a WebSocket open for multi-turn chat. Requests are validated with Pydantic and documented automatically at `/docs`.
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
-- **Conversation memory:** Messages with the same `session_id` share history through ADK's session service, so follow-ups like "can I return *it*?" resolve against earlier turns.
+- **Persistent conversation memory:** Messages with the same `session_id` share history through ADK's `DatabaseSessionService` (SQLite via async `aiosqlite`, `data/sessions.db`, git-ignored). Sessions survive server restarts, so a follow-up like "can I return *it*?" asked after a restart still resolves to the order discussed earlier.
 - **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
 - **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
@@ -260,7 +260,7 @@ data: {}
 {"type": "done"}
 ```
 
-Sessions are held in memory (`InMemorySessionService`), so conversation history is lost when the server restarts.
+Sessions are stored in `data/sessions.db` through ADK's `DatabaseSessionService`, so conversation history survives server restarts. Switching to a managed store (e.g. Vertex AI Agent Engine sessions or a PostgreSQL `db_url`) only changes the session service line in `api.py`.
 
 ## Development
 
@@ -333,6 +333,7 @@ ai-support-agent/
 │   ├── test_guardrails.py       # guardrail detection, masking, false positives
 │   ├── test_api.py              # request validation and endpoint registration
 │   ├── test_returns_store.py    # numbering, duplicate rejection, persistence
+│   ├── test_sessions.py         # sessions survive a service restart
 │   └── test_retrieval.py        # retrieval golden set (hit@1)
 ├── evals/
 │   ├── routing_eval.py          # routing and tool-trajectory eval
@@ -361,3 +362,6 @@ ai-support-agent/
   - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
+  - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
+  - [ ] Cross-session customer memory (free stand-in for Memory Bank)
+  - [ ] Context caching
