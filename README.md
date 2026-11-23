@@ -314,6 +314,7 @@ Evals call the live model and take about two minutes each because cases are pace
 uv run --env-file .env python evals/routing_eval.py   # which agent answered, which tools were called
 uv run --env-file .env python evals/answer_eval.py    # LLM-as-judge answer correctness
 uv run --env-file .env python evals/retrieval_compare.py  # vector vs BM25 vs hybrid (hit@1)
+uv run --env-file .env python evals/token_usage.py      # prompt size and cache hits per model call
 ```
 
 ```
@@ -332,6 +333,30 @@ Negatif kontrol: ✓ hakem yanlışı yakaladı
 ...
 Sonuç: 5/5
 ```
+
+### Context caching: measured, not enabled
+
+`evals/token_usage.py` runs a four-turn conversation and prints, for every model call, the prompt size and how many tokens came from cache (`usage_metadata.cached_content_token_count`):
+
+```
+Tur 1: SP-1004 nerede?
+    support_agent     istem=  682  önbellekten=    0
+    order_agent       istem=  766  önbellekten=    0
+...
+Tur 4: 320 TL'lik sepetim için kargo ne kadar tutar?
+    policy_agent      istem= 2535  önbellekten=    0
+
+11 model çağrısı, toplam istem 18151 token
+Önbellekten gelen: 0 token (%0)
+En büyük istem: 2535 token (önbellek eşiği 4096)
+```
+
+Caching is not enabled, for two measured reasons:
+
+1. **Prompts are below the minimum.** Gemini 3 models only cache a prefix of at least 4,096 tokens; the largest prompt here is about 2,500 tokens, so even implicit caching (on by default) returns 0 cached tokens.
+2. **Explicit caching is a paid feature for this model.** The Gemini pricing page lists context caching for `gemini-3.5-flash-lite` as "Not available" on the free tier, and cache storage is billed per token-hour.
+
+When it would pay off: long conversations (the prompt grows by roughly 150–600 tokens per call as history accumulates) or a much larger policy corpus in the instructions. In ADK it is one setting, `App(..., context_cache_config=ContextCacheConfig(min_tokens=4096, ttl_seconds=1800))`, which also gives each agent its own cache so hub-to-specialist transfers do not invalidate the prefix. The same script would then show the cache hit ratio.
 
 ## Project structure
 
@@ -372,7 +397,8 @@ ai-support-agent/
 ├── evals/
 │   ├── routing_eval.py          # routing and tool-trajectory eval
 │   ├── answer_eval.py           # LLM-as-judge answer eval
-│   └── retrieval_compare.py     # vector vs BM25 vs hybrid retrieval comparison
+│   ├── retrieval_compare.py     # vector vs BM25 vs hybrid retrieval comparison
+│   └── token_usage.py           # prompt size and cache hits per model call
 └── pyproject.toml
 ```
 
@@ -404,4 +430,4 @@ ai-support-agent/
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
   - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
   - [x] Cross-session customer memory derived from tool results (free stand-in for Memory Bank)
-  - [ ] Context caching
+  - [x] Context caching evaluated with per-call token measurements; not enabled (prompts ~2.5k tokens, below Gemini 3's 4,096-token minimum; not on the free tier for flash-lite)
