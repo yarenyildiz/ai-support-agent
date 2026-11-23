@@ -14,7 +14,10 @@ operasyon_araclari = McpToolset(
         server_params=StdioServerParameters(
             command=sys.executable,
             args=["-m", "ai_support_agent.mcp_server"],
-        )
+        ),
+        # Varsayılan 5 sn, Render'ın ücretsiz sunucusunda (0.1 CPU) alt sürecin açılmasına
+        # yetmiyor; CI'daki "--cpus=0.1" testi bunu yakaladı.
+        timeout=60,
     )
 )
 
