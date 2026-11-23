@@ -1,0 +1,14 @@
+# Render Blueprint: GitHub'daki Dockerfile'dan ücretsiz bir web servisi kurar.
+# Gizli değerler (sync: false) buraya yazılmaz; Render panelinde girilir.
+services:
+  - type: web
+    name: ai-support-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: API_KEY
+        sync: false

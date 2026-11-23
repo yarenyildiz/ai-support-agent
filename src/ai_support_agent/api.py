@@ -1,7 +1,9 @@
 import json
+import os
+import secrets
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
@@ -23,6 +25,21 @@ runner = Runner(
 app = FastAPI(title="AI Support Agent")
 
 
+def anahtar_gecerli_mi(gelen: str | None) -> bool:
+    """API_KEY ayarlıysa gelen anahtar onunla eşleşmeli; ayarlı değilse (yerel) herkes girer."""
+    beklenen = os.environ.get("API_KEY")
+    if not beklenen:
+        return True
+    # compare_digest: karşılaştırma süresinden anahtar tahmin edilmesini (timing attack) önler.
+    return gelen is not None and secrets.compare_digest(gelen, beklenen)
+
+
+async def anahtar_kontrolu(x_api_key: str | None = Header(default=None)) -> None:
+    """Herkese açık sunucuda Gemini kotasını korur: geçersiz anahtara 401 döner."""
+    if not anahtar_gecerli_mi(x_api_key):
+        raise HTTPException(status_code=401, detail="Geçersiz veya eksik X-API-Key")
+
+
 class ChatRequest(BaseModel):
     user_id: str
     session_id: str
@@ -40,7 +57,7 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/chat")
+@app.post("/chat", dependencies=[Depends(anahtar_kontrolu)])
 async def chat(req: ChatRequest) -> ChatResponse:
     """Müşteri mesajını ajana iletir ve son cevabı döndürür."""
     mesaj = types.Content(role="user", parts=[types.Part(text=req.message)])
@@ -79,7 +96,7 @@ def _sse(olay: str, veri: dict) -> str:
     return f"event: {olay}\ndata: {json.dumps(veri, ensure_ascii=False)}\n\n"
 
 
-@app.post("/chat/stream")
+@app.post("/chat/stream", dependencies=[Depends(anahtar_kontrolu)])
 async def chat_stream(req: ChatRequest) -> StreamingResponse:
     """Ajanın devretme, araç çağrısı ve cevap olaylarını SSE olarak akıtır."""
 
@@ -92,7 +109,13 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
 
 @app.websocket("/ws/{user_id}/{session_id}")
 async def chat_ws(websocket: WebSocket, user_id: str, session_id: str) -> None:
-    """Açık bağlantı üzerinden çok turlu sohbet: her metin mesajı bir tur başlatır."""
+    """Açık bağlantı üzerinden çok turlu sohbet: her metin mesajı bir tur başlatır.
+
+    Tarayıcılar WebSocket'e başlık ekleyemediği için anahtar ?api_key= ile gelir.
+    """
+    if not anahtar_gecerli_mi(websocket.query_params.get("api_key")):
+        await websocket.close(code=1008)  # 1008 = policy violation
+        return
     await websocket.accept()
     try:
         while True:

@@ -225,6 +225,18 @@ curl http://127.0.0.1:7860/health    # {"status":"ok"}
 
 The API key is passed as an environment variable at run time and is never baked into the image; `.dockerignore` keeps `.env`, local databases and tests out of the build context.
 
+### Access protection and deployment
+
+When the `API_KEY` environment variable is set, `/chat` and `/chat/stream` require a matching `X-API-Key` header (401 otherwise) and the WebSocket requires `?api_key=...` (closed with code 1008 otherwise). `/health` stays open for the platform's health checks. Keys are compared with `secrets.compare_digest`. Locally, with `API_KEY` unset, the API stays open. This protects the Gemini quota once the service is reachable from the internet.
+
+```bash
+curl -X POST https://<your-service>.onrender.com/chat \
+  -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
+  -d '{"user_id":"u1","session_id":"s1","message":"SP-1004 nerede?"}'
+```
+
+`render.yaml` is a Render Blueprint for the free plan: it builds the same `Dockerfile`, uses `/health` as the health check and declares `GEMINI_API_KEY` and `API_KEY` as secrets entered in the Render dashboard (never committed). Free instances sleep after 15 minutes without traffic (the first request then takes about a minute) and their disk is ephemeral, so SQLite sessions, memory and return requests reset on restart; a managed database would be the production choice.
+
 **REST**
 
 ```bash
@@ -328,6 +340,7 @@ ai-support-agent/
 ├── .github/workflows/ci.yml     # lint, format check, tests, Docker build + /health check
 ├── .github/workflows/evals.yml  # live-model evals, on demand and weekly
 ├── Dockerfile                   # production image (uv, non-root, port 7860)
+├── render.yaml                  # Render Blueprint (free plan, secrets set in dashboard)
 ├── data/
 │   ├── orders.json              # sample order data
 │   └── policies.md              # store policies (returns, shipping, delivery, cancellation)
@@ -350,7 +363,7 @@ ai-support-agent/
 │   ├── test_repository.py       # unit tests for the repository
 │   ├── test_rag.py              # unit tests for chunking
 │   ├── test_guardrails.py       # guardrail detection, masking, false positives
-│   ├── test_api.py              # request validation and endpoint registration
+│   ├── test_api.py              # request validation, endpoints, API key protection
 │   ├── test_returns_store.py    # numbering, duplicate rejection, persistence
 │   ├── test_sessions.py         # sessions survive a service restart
 │   ├── test_memory.py           # memory isolation, dedup, persistence, note extraction
@@ -385,7 +398,8 @@ ai-support-agent/
   - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
   - [x] Docker image with `/health`, built and smoke-tested in CI (free stand-in for GKE packaging)
-  - [ ] Public deployment on a free host
+  - [x] API key protection (`X-API-Key`) and Render Blueprint for a free deployment
+  - [ ] Public deployment on a free host (Render)
   - [ ] Google Cloud services (need a paid Google Cloud account)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
   - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
