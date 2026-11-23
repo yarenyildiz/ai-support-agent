@@ -4,7 +4,7 @@ A multi-agent customer support system ("Nova") for a fictional e-commerce compan
 
 [![CI](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml)
 
-**Live demo:** <https://ai-support-agent-0yi8.onrender.com> (chat UI with a live agent trace; sending messages requires an access key, ask the author for a demo. The free instance sleeps when idle, so the first request can take about a minute.)
+**Live demo:** <https://ai-support-agent-0yi8.onrender.com> (chat UI with a live agent trace; try it without a key, limited to 5 messages per hour. The free instance sleeps when idle, so the first request can take about a minute.)
 
 This repository is being built incrementally toward a production deployment on Google Cloud (see [Roadmap](#roadmap)).
 
@@ -232,6 +232,8 @@ The API key is passed as an environment variable at run time and is never baked 
 
 When the `API_KEY` environment variable is set, `/chat` and `/chat/stream` require a matching `X-API-Key` header (401 otherwise) and the WebSocket requires `?api_key=...` (closed with code 1008 otherwise). `/health` stays open for the platform's health checks. Keys are compared with `secrets.compare_digest`. Locally, with `API_KEY` unset, the API stays open. This protects the Gemini quota once the service is reachable from the internet.
 
+**Demo mode:** requests without a key are allowed under a rate limit (`rate_limit.py`): `DEMO_SAATLIK_SINIR` messages per client per hour (sliding window, default 5) and `DEMO_GUNLUK_SINIR` messages per day across all visitors (default 100); beyond that the API returns **429**. A wrong key still returns 401, and setting either limit to `0` turns demo mode off. `GET /demo` exposes the limits so the UI can show them. Counters live in process memory: they reset when the free instance restarts and are not shared across replicas, and the per-client limit trusts the first `X-Forwarded-For` address, so the daily cap is the real quota guard. A production setup would keep counters in Redis and identify users with real authentication.
+
 ```bash
 curl -X POST https://ai-support-agent-0yi8.onrender.com/chat \
   -H "Content-Type: application/json" -H "X-API-Key: $API_KEY" \
@@ -383,6 +385,7 @@ ai-support-agent/
 │   ├── rag.py                   # chunking, embedding, vector/BM25/RRF retrieval
 │   ├── mcp_server.py            # MCP tool server (shipping fee, return requests)
 │   ├── returns_store.py         # SQLite repository for return requests
+│   ├── rate_limit.py            # in-memory rate limiter for keyless demo use
 │   ├── memory.py                # cross-session customer memory (SQLite + ADK callbacks)
 │   ├── guardrails.py            # input/output guardrails and ADK callbacks
 │   ├── api.py                   # FastAPI app: REST, SSE and WebSocket endpoints
@@ -392,7 +395,8 @@ ai-support-agent/
 │   ├── test_repository.py       # unit tests for the repository
 │   ├── test_rag.py              # unit tests for chunking
 │   ├── test_guardrails.py       # guardrail detection, masking, false positives
-│   ├── test_api.py              # request validation, endpoints, API key protection
+│   ├── test_api.py              # request validation, endpoints, API key and demo limits
+│   ├── test_rate_limit.py       # sliding hourly window, shared daily cap, day rollover
 │   ├── test_returns_store.py    # numbering, duplicate rejection, persistence
 │   ├── test_sessions.py         # sessions survive a service restart
 │   ├── test_memory.py           # memory isolation, dedup, persistence, note extraction
@@ -431,6 +435,8 @@ ai-support-agent/
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
   - [x] Docker image with `/health`, built and smoke-tested in CI (free stand-in for GKE packaging)
   - [x] API key protection (`X-API-Key`) and Render Blueprint for a free deployment
+  - [x] Rate-limited keyless demo mode (per-client hourly, global daily; 429 on limit)
+  - [x] MCP startup timeout raised for 0.1-CPU hosts, reproduced in CI with `docker run --cpus=0.1`
   - [x] Public deployment on Render's free plan: https://ai-support-agent-0yi8.onrender.com (`/health` is open, chat endpoints need the API key)
   - [ ] Google Cloud services (need a paid Google Cloud account)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching

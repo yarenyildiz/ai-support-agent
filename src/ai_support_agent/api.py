@@ -5,7 +5,15 @@ import secrets
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, StreamingResponse
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
@@ -13,6 +21,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from ai_support_agent.agents.support_agent.agent import root_agent
+from ai_support_agent.rate_limit import DemoSinirlayici
 
 APP_NAME = "ai_support_agent"
 HATA_MESAJI = "Şu an cevap veremiyorum, lütfen biraz sonra tekrar deneyin."
@@ -39,10 +48,37 @@ def anahtar_gecerli_mi(gelen: str | None) -> bool:
     return gelen is not None and secrets.compare_digest(gelen, beklenen)
 
 
-async def anahtar_kontrolu(x_api_key: str | None = Header(default=None)) -> None:
-    """Herkese açık sunucuda Gemini kotasını korur: geçersiz anahtara 401 döner."""
-    if not anahtar_gecerli_mi(x_api_key):
+demo_sinirlayici = DemoSinirlayici()
+
+
+def _sinir(ad: str, varsayilan: int) -> int:
+    """Demo sınırını ortam değişkeninden okur; 0 demo modunu kapatır."""
+    return int(os.environ.get(ad, varsayilan))
+
+
+def _istemci_adresi(request: Request) -> str:
+    """Render gibi bir vekil sunucunun arkasında gerçek istemci adresi X-Forwarded-For'dadır."""
+    iletilen = request.headers.get("x-forwarded-for")
+    if iletilen:
+        return iletilen.split(",")[0].strip()
+    return request.client.host if request.client else "bilinmiyor"
+
+
+async def anahtar_kontrolu(request: Request, x_api_key: str | None = Header(default=None)) -> None:
+    """Gemini kotasını korur.
+
+    - Doğru anahtar: sınırsız.
+    - Anahtar yok: demo modu açıksa saatlik/günlük sınırla izin verilir (aşılırsa 429).
+    - Yanlış anahtar ya da demo kapalı: 401.
+    """
+    x_api_key = x_api_key or None  # boş başlık = anahtar yok
+    if anahtar_gecerli_mi(x_api_key):
+        return
+    saatlik, gunluk = _sinir("DEMO_SAATLIK_SINIR", 5), _sinir("DEMO_GUNLUK_SINIR", 100)
+    if x_api_key is not None or saatlik <= 0 or gunluk <= 0:
         raise HTTPException(status_code=401, detail="Geçersiz veya eksik X-API-Key")
+    if sebep := demo_sinirlayici.izin_ver(_istemci_adresi(request), saatlik, gunluk):
+        raise HTTPException(status_code=429, detail=sebep)
 
 
 class ChatRequest(BaseModel):
@@ -63,6 +99,15 @@ ARAYUZ = Path(__file__).parent / "static" / "index.html"
 async def ana_sayfa() -> FileResponse:
     """Sohbet arayüzü: /chat/stream olaylarını (devretme, araç, cevap) canlı gösterir."""
     return FileResponse(ARAYUZ)
+
+
+@app.get("/demo")
+async def demo_bilgisi() -> dict[str, int]:
+    """Arayüzün gösterdiği anahtarsız demo sınırları (0 = demo kapalı)."""
+    return {
+        "saatlik": _sinir("DEMO_SAATLIK_SINIR", 5),
+        "gunluk": _sinir("DEMO_GUNLUK_SINIR", 100),
+    }
 
 
 @app.get("/health")

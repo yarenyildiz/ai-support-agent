@@ -75,6 +75,7 @@
   @media (prefers-reduced-motion: reduce) { .robot { animation: none; } }
   .karsilama h2 { margin: 4px 0 0; font-size: 24px; line-height: 1.25; }
   .karsilama p { margin: 0; color: var(--muted); font-size: 14px; max-width: 320px; }
+  .rozet { margin-top: 6px !important; font-size: 12px !important; padding: 3px 10px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-line); }
   .kartlar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; margin-top: 14px; }
   .kart {
     text-align: left; border: 1px solid var(--glass-line); background: var(--glass); border-radius: 20px;
@@ -146,10 +147,10 @@
   </header>
 
   <section id="ayarlar">
-    <label for="anahtar">Erişim anahtarı (X-API-Key)</label>
-    <p id="ayar-uyari" hidden style="margin:0 0 8px;color:var(--text)">🔑 Mesaj göndermek için önce anahtarı girin.</p>
+    <label for="anahtar">Erişim anahtarı (isteğe bağlı)</label>
+    <p id="ayar-uyari" hidden style="margin:0 0 8px;color:var(--text)"></p>
     <input id="anahtar" type="password" autocomplete="off" placeholder="Anahtarı yapıştırın">
-    <p>Anahtar sadece bu tarayıcıda saklanır. ·
+    <p><span class="demo-metni">Anahtarsız demo sınırlıdır.</span> Anahtar sınırı kaldırır ve sadece bu tarayıcıda saklanır. ·
       <a href="/docs">API dokümantasyonu</a> ·
       <a href="https://github.com/yarenyildiz/ai-support-agent">GitHub</a></p>
   </section>
@@ -200,6 +201,7 @@
     </svg>
     <h2>Merhaba!<br>Size nasıl yardımcı olabilirim?</h2>
     <p>Sorunuzu ana ajan okur ve doğru uzmana devreder. Arka planda olan her adım burada canlı görünür.</p>
+    <p class="rozet demo-rozet" hidden></p>
     <div class="kartlar">
       <button class="kart" type="button" data-soru="SP-1004 nerede?">
         <span class="e">📦</span><b>Sipariş takibi</b><span>SP-1004 nerede?</span></button>
@@ -241,8 +243,24 @@
   }
   ayarBtn.addEventListener("click", () => ayarlariAc(!ayarlar.classList.contains("acik")));
 
+  // Demo sınırlarını sunucudan öğren (Render'da ortam değişkeniyle değişebilir).
+  let demo = null;
+  fetch("/demo").then((r) => r.json()).then((d) => { demo = d; demoMetinleri(); }).catch(() => {});
+  function demoMetinleri() {
+    if (!demo) return;
+    const acik = demo.saatlik > 0 && demo.gunluk > 0;
+    document.querySelectorAll(".demo-metni").forEach((el) => {
+      el.textContent = acik ? `Anahtarsız demo: saatte ${demo.saatlik} mesaj.` : "Mesaj göndermek için anahtar gerekir.";
+    });
+    document.querySelectorAll(".demo-rozet").forEach((el) => {
+      el.textContent = acik ? `Demo · saatte ${demo.saatlik} mesaj ücretsiz` : "Mesaj göndermek için erişim anahtarı gerekir";
+      el.hidden = false;
+    });
+  }
+
   function karsilamaGoster() {
     sohbet.replaceChildren($("karsilama").content.cloneNode(true));
+    demoMetinleri();
     sohbet.querySelectorAll(".kart").forEach((k) =>
       k.addEventListener("click", () => { if (!gonder.disabled) sor(k.dataset.soru); }));
   }
@@ -278,12 +296,11 @@
   }
 
   async function sor(metin) {
-    if (!anahtar.value.trim()) {
+    const uyar = (metin) => {
+      $("ayar-uyari").textContent = metin;
       $("ayar-uyari").hidden = false;
       ayarlariAc(true);
-      return;
-    }
-    $("ayar-uyari").hidden = true;
+    };
     ekle("satir kullanici", `<div class="balon">${kacir(metin)}</div>`);
     const bekle = ekle("satir ajan bekle-satir", `${ROBOT}<div class="balon bekle" aria-label="Yazıyor"><i></i><i></i><i></i></div>`);
     gonder.disabled = true;
@@ -293,7 +310,15 @@
         headers: { "Content-Type": "application/json", "X-API-Key": anahtar.value.trim() },
         body: JSON.stringify({ user_id: kullanici, session_id: oturum, message: metin }),
       });
-      if (yanit.status === 401) { ayarlariAc(true); throw new Error("Erişim anahtarı eksik ya da yanlış."); }
+      if (yanit.status === 401) {
+        uyar("🔑 Bu anahtar geçersiz. Silerseniz demo olarak devam edebilirsiniz.");
+        throw new Error("Erişim anahtarı geçersiz.");
+      }
+      if (yanit.status === 429) {
+        const { detail } = await yanit.json().catch(() => ({}));
+        uyar("🔑 Demo sınırı doldu. Anahtarınız varsa buraya girin.");
+        throw new Error(detail || "Demo sınırına ulaşıldı.");
+      }
       if (!yanit.ok) throw new Error(`Sunucu hatası (${yanit.status}). Biraz sonra tekrar deneyin.`);
 
       // SSE akışını okuyup "event:/data:" bloklarına ayırıyoruz (EventSource POST desteklemiyor).
