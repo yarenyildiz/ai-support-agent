@@ -34,6 +34,12 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Sağlık kontrolü: süreç ayakta mı? Modeli çağırmaz, kota harcamaz."""
+    return {"status": "ok"}
+
+
 @app.post("/chat")
 async def chat(req: ChatRequest) -> ChatResponse:
     """Müşteri mesajını ajana iletir ve son cevabı döndürür."""

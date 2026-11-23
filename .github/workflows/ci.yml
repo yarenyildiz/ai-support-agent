@@ -24,4 +24,21 @@ jobs:
 
       - name: Tests
         run: uv run pytest -q
-        
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -t ai-support-agent .
+
+      - name: Run container and check /health
+        run: |
+          docker run -d --name app -p 7860:7860 ai-support-agent
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:7860/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs app
+          exit 1

@@ -20,3 +20,9 @@ def test_dokumantasyon_iki_ucu_listeler() -> None:
     yollar = client.get("/openapi.json").json()["paths"]
     assert "/chat" in yollar
     assert "/chat/stream" in yollar
+
+
+def test_saglik_kontrolu() -> None:
+    cevap = client.get("/health")
+    assert cevap.status_code == 200
+    assert cevap.json() == {"status": "ok"}
