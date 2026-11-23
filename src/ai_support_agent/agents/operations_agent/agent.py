@@ -7,6 +7,7 @@ from google.genai import types
 from mcp import StdioServerParameters
 
 from ai_support_agent.guardrails import cikti_kontrolu, girdi_kontrolu
+from ai_support_agent.memory import hafizaya_yaz
 
 operasyon_araclari = McpToolset(
     connection_params=StdioConnectionParams(
@@ -21,6 +22,7 @@ root_agent = Agent(
     name="operations_agent",
     before_model_callback=girdi_kontrolu,
     after_model_callback=cikti_kontrolu,
+    after_tool_callback=hafizaya_yaz,
     disallow_transfer_to_peers=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",

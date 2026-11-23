@@ -5,6 +5,7 @@ from google.adk.models.google_llm import Gemini
 from google.genai import types
 
 from ai_support_agent.guardrails import cikti_kontrolu, girdi_kontrolu
+from ai_support_agent.memory import hafizaya_yaz
 from ai_support_agent.repository import OrderRepository
 
 repo = OrderRepository(Path("data/orders.json"))
@@ -22,6 +23,7 @@ root_agent = Agent(
     name="order_agent",
     before_model_callback=girdi_kontrolu,
     after_model_callback=cikti_kontrolu,
+    after_tool_callback=hafizaya_yaz,
     disallow_transfer_to_peers=True,
     model=Gemini(
         model="gemini-3.5-flash-lite",

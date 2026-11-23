@@ -25,6 +25,7 @@ This repository is being built incrementally toward a production deployment on G
 - **Persistent conversation memory:** Messages with the same `session_id` share history through ADK's `DatabaseSessionService` (SQLite via async `aiosqlite`, `data/sessions.db`, git-ignored). Sessions survive server restarts, so a follow-up like "can I return *it*?" asked after a restart still resolves to the order discussed earlier.
 - **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called (trajectory eval, currently **7/7**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
 - **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
+- **Cross-session customer memory:** Facts about a customer (orders they asked about, return requests they opened) are kept in SQLite (`data/memory.db`, git-ignored) and injected into the hub's instruction in later conversations, so "what did I do last time?" is answered from real records. Notes are written by an `after_tool_callback` from **successful tool results**, not from model text, so nothing the model invents can enter memory.
 - **Grounded answers:** Order lookups return an explicit error payload for unknown IDs, and the policy agent is instructed to answer only from retrieved text, so the system reports missing information rather than hallucinating.
 - **Scope control:** Off-topic queries (e.g. weather) are declined by the hub.
 - **Resilience:** Every agent's Gemini model is configured with up to 5 automatic retries to absorb transient `503 UNAVAILABLE` / `504 DEADLINE_EXCEEDED` responses.
@@ -126,6 +127,7 @@ question ──────────────────────► v
 - **Let the database enforce invariants:** "One return request per order" is a `UNIQUE` constraint rather than a check in Python or a line in the prompt, so it holds across restarts, concurrent requests and a manipulated model. Values are passed with `?` placeholders, never formatted into SQL.
 - **Evals as a separate layer from tests:** Unit tests are deterministic, free and run in CI. Evals call the live model, are rate-limited (15 requests/minute on the free tier, so cases are paced) and are run before and after behavioral changes. Trajectory checks and the LLM judge answer different questions: "did it take the right path?" versus "is the answer right?".
 - **Trust but verify the judge:** An LLM judge can be wrong or lenient. Each run first checks that the judge rejects a known-wrong answer, and the judge uses `temperature=0` and a Pydantic response schema so verdicts are consistent and machine-readable. Every external call, including the judge's, is configured with retries.
+- **Memory from facts, not from the model:** A free stand-in for Agent Engine Memory Bank. Rather than asking an LLM to summarize conversations (extra cost, and a hallucinated "memory" would persist), memory notes are derived in code from tool results: an order lookup or a created return request. The hub reads the last five notes through an ADK instruction provider. The write path is wrapped so a memory failure is logged and never breaks the conversation; this was added after a `None` tool response from `transfer_to_agent` crashed an early version.
 - **Fast API tests without the model:** API tests use FastAPI's `TestClient` to check request validation (422 on missing or mistyped fields) and endpoint registration. They do not call Gemini, so they run in CI without credentials.
 
 ## Tech stack
@@ -324,6 +326,7 @@ ai-support-agent/
 │   ├── rag.py                   # chunking, embedding, retrieval
 │   ├── mcp_server.py            # MCP tool server (shipping fee, return requests)
 │   ├── returns_store.py         # SQLite repository for return requests
+│   ├── memory.py                # cross-session customer memory (SQLite + ADK callbacks)
 │   ├── guardrails.py            # input/output guardrails and ADK callbacks
 │   ├── api.py                   # FastAPI app: REST, SSE and WebSocket endpoints
 │   └── chat.py                  # week 1 single-agent prototype
@@ -334,6 +337,7 @@ ai-support-agent/
 │   ├── test_api.py              # request validation and endpoint registration
 │   ├── test_returns_store.py    # numbering, duplicate rejection, persistence
 │   ├── test_sessions.py         # sessions survive a service restart
+│   ├── test_memory.py           # memory isolation, dedup, persistence, note extraction
 │   └── test_retrieval.py        # retrieval golden set (hit@1)
 ├── evals/
 │   ├── routing_eval.py          # routing and tool-trajectory eval
@@ -363,5 +367,5 @@ ai-support-agent/
 - [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
 - [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
   - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
-  - [ ] Cross-session customer memory (free stand-in for Memory Bank)
+  - [x] Cross-session customer memory derived from tool results (free stand-in for Memory Bank)
   - [ ] Context caching
