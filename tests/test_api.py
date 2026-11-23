@@ -63,3 +63,9 @@ def test_websocket_anahtarsiz_reddedilir(monkeypatch: pytest.MonkeyPatch) -> Non
     with pytest.raises(WebSocketDisconnect) as hata, client.websocket_connect("/ws/u1/s1"):
         pass
     assert hata.value.code == 1008
+
+
+def test_ana_sayfa_dokumantasyona_yonlendirir() -> None:
+    cevap = client.get("/", follow_redirects=False)
+    assert cevap.status_code == 307
+    assert cevap.headers["location"] == "/docs"

@@ -4,7 +4,7 @@ import secrets
 from collections.abc import AsyncIterator
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
 from google.genai import types
@@ -49,6 +49,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     agent: str
     reply: str
+
+
+@app.get("/", include_in_schema=False)
+async def ana_sayfa() -> RedirectResponse:
+    """Kök adresi açan biri 404 yerine etkileşimli API dokümantasyonunu görür."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health")
