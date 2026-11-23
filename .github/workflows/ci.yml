@@ -42,3 +42,19 @@ jobs:
           done
           docker logs app
           exit 1
+
+      # Render'ın ücretsiz sunucusu gibi 0.1 CPU ile MCP sunucusuna bağlanabiliyor muyuz?
+      # (Model çağrılmaz; sadece alt süreç başlatılıp araç listesi alınır.)
+      - name: MCP tool server starts on 0.1 CPU
+        run: |
+          docker run --rm --cpus=0.1 ai-support-agent python -c "
+          import asyncio, time
+          from ai_support_agent.agents.operations_agent.agent import operasyon_araclari
+          async def main():
+              baslangic = time.monotonic()
+              araclar = await operasyon_araclari.get_tools()
+              print(f'{len(araclar)} araç, {time.monotonic() - baslangic:.1f} sn:', [a.name for a in araclar])
+              assert 'kargo_ucreti_hesapla' in [a.name for a in araclar]
+              await operasyon_araclari.close()
+          asyncio.run(main())
+          "
