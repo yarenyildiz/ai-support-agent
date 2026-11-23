@@ -4,6 +4,8 @@ A multi-agent customer support system ("Destekçi") for a fictional e-commerce c
 
 [![CI](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/yarenyildiz/ai-support-agent/actions/workflows/ci.yml)
 
+**Live demo:** <https://ai-support-agent-0yi8.onrender.com> (chat UI with a live agent trace; sending messages requires an access key, ask the author for a demo. The free instance sleeps when idle, so the first request can take about a minute.)
+
 This repository is being built incrementally toward a production deployment on Google Cloud (see [Roadmap](#roadmap)).
 
 ## Current capabilities
@@ -25,6 +27,7 @@ This repository is being built incrementally toward a production deployment on G
 - **Event streaming:** Streaming endpoints emit `transfer`, `tool_call`, `message` and `done` events, so a client can show progress ("routing to a specialist", "creating your return request") while the agents work.
 - **Persistent conversation memory:** Messages with the same `session_id` share history through ADK's `DatabaseSessionService` (SQLite via async `aiosqlite`, `data/sessions.db`, git-ignored). Sessions survive server restarts, so a follow-up like "can I return *it*?" asked after a restart still resolves to the order discussed earlier.
 - **Agent evaluation:** `evals/routing_eval.py` checks, per question, which agent answered and which tools were called, both for single questions and for a multi-turn conversation that switches topics (trajectory eval, currently **10/10**). `evals/answer_eval.py` uses Gemini as a judge with a structured `Karar` verdict to check answer correctness, including a "do not invent an order" case (currently **5/5**). Each run starts with a negative control that feeds the judge a deliberately wrong answer and verifies it is rejected.
+- **Chat UI with live agent trace:** The root page (`/`) is a single dependency-free HTML file that reads `/chat/stream` and shows each step as it happens: which specialist took over, which tool it called, then the answer. Stream failures are reported as an `error` event instead of silently closing the connection.
 - **Containerized:** A `Dockerfile` packages the API with `uv sync --frozen --no-dev` (same locked versions as development), runs as a non-root user and exposes a `/health` endpoint that does not call the model. CI builds the image and starts the container on every push and pull request.
 - **Continuous integration:** GitHub Actions runs `ruff check`, `ruff format --check` and `pytest` on every push and pull request. A separate `Evals` workflow runs the retrieval golden set and both evals against the live model on demand and every Monday, using the API key from a repository secret; any failed case exits non-zero and fails the run.
 - **Cross-session customer memory:** Facts about a customer (orders they asked about, return requests they opened) are kept in SQLite (`data/memory.db`, git-ignored) and injected into the hub's instruction in later conversations, so "what did I do last time?" is answered from real records. Notes are written by an `after_tool_callback` from **successful tool results**, not from model text, so nothing the model invents can enter memory.
@@ -213,7 +216,7 @@ uv run --env-file .env adk run src/ai_support_agent/agents/order_agent
 uv run --env-file .env uvicorn ai_support_agent.api:app --reload
 ```
 
-Interactive docs are served at <http://127.0.0.1:8000/docs>.
+Open <http://127.0.0.1:8000> for the chat UI; interactive API docs are served at <http://127.0.0.1:8000/docs>.
 
 ### Running with Docker
 
@@ -383,6 +386,7 @@ ai-support-agent/
 │   ├── memory.py                # cross-session customer memory (SQLite + ADK callbacks)
 │   ├── guardrails.py            # input/output guardrails and ADK callbacks
 │   ├── api.py                   # FastAPI app: REST, SSE and WebSocket endpoints
+│   ├── static/index.html        # chat UI with live agent trace (served at /)
 │   └── chat.py                  # week 1 single-agent prototype
 ├── tests/
 │   ├── test_repository.py       # unit tests for the repository
@@ -418,6 +422,7 @@ ai-support-agent/
   - [x] Output guardrail: instruction-leak detection, card-number masking
   - [x] Persistent return requests in SQLite with one-request-per-order constraint
 - [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
+  - [x] Chat UI showing transfers and tool calls live over SSE
 - [x] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
   - [x] CI: lint, format check and tests on every push (GitHub Actions)
   - [x] Routing / tool-trajectory eval, including a multi-turn topic switch (10/10)

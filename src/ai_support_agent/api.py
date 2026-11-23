@@ -1,10 +1,12 @@
 import json
+import logging
 import os
 import secrets
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from google.adk.runners import Runner
 from google.adk.sessions import DatabaseSessionService
 from google.genai import types
@@ -13,6 +15,9 @@ from pydantic import BaseModel
 from ai_support_agent.agents.support_agent.agent import root_agent
 
 APP_NAME = "ai_support_agent"
+HATA_MESAJI = "Şu an cevap veremiyorum, lütfen biraz sonra tekrar deneyin."
+
+logger = logging.getLogger(__name__)
 
 session_service = DatabaseSessionService(db_url="sqlite+aiosqlite:///data/sessions.db")
 runner = Runner(
@@ -51,10 +56,13 @@ class ChatResponse(BaseModel):
     reply: str
 
 
+ARAYUZ = Path(__file__).parent / "static" / "index.html"
+
+
 @app.get("/", include_in_schema=False)
-async def ana_sayfa() -> RedirectResponse:
-    """Kök adresi açan biri 404 yerine etkileşimli API dokümantasyonunu görür."""
-    return RedirectResponse(url="/docs")
+async def ana_sayfa() -> FileResponse:
+    """Sohbet arayüzü: /chat/stream olaylarını (devretme, araç, cevap) canlı gösterir."""
+    return FileResponse(ARAYUZ)
 
 
 @app.get("/health")
@@ -107,8 +115,13 @@ async def chat_stream(req: ChatRequest) -> StreamingResponse:
     """Ajanın devretme, araç çağrısı ve cevap olaylarını SSE olarak akıtır."""
 
     async def akis() -> AsyncIterator[str]:
-        async for olay, veri in ajan_olaylari(req.user_id, req.session_id, req.message):
-            yield _sse(olay, veri)
+        try:
+            async for olay, veri in ajan_olaylari(req.user_id, req.session_id, req.message):
+                yield _sse(olay, veri)
+        except Exception:
+            # Akış başladıktan sonra HTTP durum kodu değiştirilemez; hatayı bir olay olarak bildir.
+            logger.exception("Ajan akışı başarısız oldu")
+            yield _sse("error", {"message": HATA_MESAJI})
 
     return StreamingResponse(akis(), media_type="text/event-stream")
 

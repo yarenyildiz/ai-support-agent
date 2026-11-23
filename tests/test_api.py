@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from ai_support_agent import api
 from ai_support_agent.api import app
 
 client = TestClient(app)
@@ -65,7 +66,22 @@ def test_websocket_anahtarsiz_reddedilir(monkeypatch: pytest.MonkeyPatch) -> Non
     assert hata.value.code == 1008
 
 
-def test_ana_sayfa_dokumantasyona_yonlendirir() -> None:
-    cevap = client.get("/", follow_redirects=False)
-    assert cevap.status_code == 307
-    assert cevap.headers["location"] == "/docs"
+def test_ana_sayfa_sohbet_arayuzunu_dondurur(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arayüz herkese açık; anahtar sadece sohbet isteklerinde gerekiyor.
+    monkeypatch.setenv("API_KEY", "gizli")
+    cevap = client.get("/")
+    assert cevap.status_code == 200
+    assert cevap.headers["content-type"].startswith("text/html")
+    assert "/chat/stream" in cevap.text
+
+
+def test_akis_hatasi_olay_olarak_bildirilir(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def bozuk_akis(*_args):
+        yield "transfer", {"to": "order_agent"}
+        raise RuntimeError("model çöktü")
+
+    monkeypatch.setattr(api, "ajan_olaylari", bozuk_akis)
+    cevap = client.post("/chat/stream", json={"user_id": "u1", "session_id": "s1", "message": "x"})
+    assert cevap.status_code == 200
+    assert "event: transfer" in cevap.text
+    assert "event: error" in cevap.text
