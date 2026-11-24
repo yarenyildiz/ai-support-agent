@@ -6,8 +6,6 @@ A multi-agent customer support system ("Nova") for a fictional e-commerce compan
 
 **Live demo:** <https://ai-support-agent-0yi8.onrender.com> (chat UI with a live agent trace; try it without a key, limited to 5 messages per hour. The free instance sleeps when idle, so the first request can take about a minute.)
 
-This repository is being built incrementally toward a production deployment on Google Cloud (see [Roadmap](#roadmap)).
-
 ## Current capabilities
 
 - **Hub-and-spoke orchestration:** `support_agent` handles greetings and off-topic requests itself and transfers domain questions to the right specialist (`order_agent`, `policy_agent` or `operations_agent`) using ADK's LLM-driven agent transfer. It distinguishes similar intents, e.g. "what is the return period?" (policy) vs. "I want to return SP-1006" (operation). Specialists cannot transfer to each other or back up (`disallow_transfer_to_peers=True`, `disallow_transfer_to_parent=True`), so ADK starts every new turn at the hub, which routes again. Without this, the specialist that answered last kept the next turn and sometimes answered out-of-scope questions itself (found by `evals/token_usage.py`, now covered by a unit test and multi-turn eval cases).
@@ -410,36 +408,3 @@ ai-support-agent/
 │   └── token_usage.py           # prompt size and cache hits per model call
 └── pyproject.toml
 ```
-
-## Roadmap
-
-- [x] **Week 1:** Single agent with function calling, validated data layer, unit tests
-- [x] **Week 2:** Hub-and-spoke multi-agent system with Google ADK (hub + order and policy specialists)
-- [ ] **Week 3:** RAG over policy documents with grounding and citations
-  - [x] Local pipeline: heading-based chunking, Gemini embeddings, cosine retrieval, source citations
-  - [x] Retrieval golden set (hit@1 = 7/7)
-  - [x] Hybrid retrieval (BM25 + vector, RRF) implemented and compared on a 16-question set; vector kept (16/16 vs 15/16)
-  - [ ] Vertex AI Search backend (needs a paid Google Cloud account)
-- [x] **Week 4:** MCP server for refund/shipping operations, input/output guardrails
-  - [x] MCP server with shipping-fee and rule-checked return-request tools, consumed via `McpToolset`
-  - [x] Input guardrails: card-number masking across history, prompt-injection screening
-  - [x] Output guardrail: instruction-leak detection, card-number masking
-  - [x] Persistent return requests in SQLite with one-request-per-order constraint
-- [x] **Week 5:** FastAPI service with REST, SSE and WebSocket streaming
-  - [x] Chat UI showing transfers and tool calls live over SSE
-- [x] **Week 6:** Evaluation suite (golden set, LLM-as-judge) with regression runs in CI
-  - [x] CI: lint, format check and tests on every push (GitHub Actions)
-  - [x] Routing / tool-trajectory eval, including a multi-turn topic switch (10/10)
-  - [x] LLM-as-judge answer eval with negative control (5/5)
-  - [x] `Evals` workflow: retrieval golden set, trajectory eval and LLM judge, run on demand and every Monday, failing on any regression
-- [ ] **Week 7:** Deployment to Google Cloud (Agent Engine, GKE, BigQuery, Secret Manager)
-  - [x] Docker image with `/health`, built and smoke-tested in CI (free stand-in for GKE packaging)
-  - [x] API key protection (`X-API-Key`) and Render Blueprint for a free deployment
-  - [x] Rate-limited keyless demo mode (per-client hourly, global daily; 429 on limit)
-  - [x] MCP startup timeout raised for 0.1-CPU hosts, reproduced in CI with `docker run --cpus=0.1`
-  - [x] Public deployment on Render's free plan: https://ai-support-agent-0yi8.onrender.com (`/health` is open, chat endpoints need the API key)
-  - [ ] Google Cloud services (need a paid Google Cloud account)
-- [ ] **Week 8:** Agent Engine Sessions, Memory Bank and context caching
-  - [x] Persistent sessions with ADK `DatabaseSessionService` (free, local stand-in for Agent Engine Sessions)
-  - [x] Cross-session customer memory derived from tool results (free stand-in for Memory Bank)
-  - [x] Context caching evaluated with per-call token measurements; not enabled (prompts ~2.5k tokens, below Gemini 3's 4,096-token minimum; not on the free tier for flash-lite)
